@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive-icon foreground: a 5-bar waveform. Kept inside the central 72dp
+     safe zone so no launcher mask can clip it. The tint is a colour resource so
+     API 31+ can swap it for the wallpaper accent. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M34,48 L34,60" android:strokeColor="@color/ic_launcher_foreground_tint" android:strokeWidth="7" android:strokeLineCap="round" />
+    <path android:pathData="M44,42 L44,66" android:strokeColor="@color/ic_launcher_foreground_tint" android:strokeWidth="7" android:strokeLineCap="round" />
+    <path android:pathData="M54,36 L54,72" android:strokeColor="@color/ic_launcher_foreground_tint" android:strokeWidth="7" android:strokeLineCap="round" />
+    <path android:pathData="M64,42 L64,66" android:strokeColor="@color/ic_launcher_foreground_tint" android:strokeWidth="7" android:strokeLineCap="round" />
+    <path android:pathData="M74,48 L74,60" android:strokeColor="@color/ic_launcher_foreground_tint" android:strokeWidth="7" android:strokeLineCap="round" />
+</vector>

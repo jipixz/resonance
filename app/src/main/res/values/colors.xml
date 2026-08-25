@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fixed fallbacks. values-v31 aliases both to the wallpaper palette. -->
+    <color name="ic_launcher_background">#FF101418</color>
+    <color name="ic_launcher_foreground_tint">#FFB8C4FF</color>
+</resources>
