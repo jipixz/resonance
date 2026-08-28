@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- Only to read a connected Bluetooth output's *name* for the "playing on"
+         row in the player screen — API 30 already allows that without it. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
     <application
         android:name=".ResonanceApp"
         android:allowBackup="true"

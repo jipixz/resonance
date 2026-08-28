@@ -43,6 +43,10 @@ data class PlaybackUiState(
     val hasQueue: Boolean = false,
     /** Position in the queue. Drives the direction of the track-change animation. */
     val queueIndex: Int = 0,
+    /** False at the first/last track with repeat off — greys out the transport
+     * buttons so reaching the end of the queue reads without opening it. */
+    val hasNext: Boolean = false,
+    val hasPrevious: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
 )
@@ -147,6 +151,8 @@ class PlayerConnection(
             positionMs = c.currentPosition.coerceAtLeast(0L),
             hasQueue = c.mediaItemCount > 0,
             queueIndex = c.currentMediaItemIndex,
+            hasNext = c.hasNextMediaItem(),
+            hasPrevious = c.hasPreviousMediaItem(),
             shuffleEnabled = c.shuffleModeEnabled,
             repeatMode = c.repeatMode,
         )

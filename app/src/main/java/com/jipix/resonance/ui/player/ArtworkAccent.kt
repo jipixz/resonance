@@ -11,6 +11,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.palette.graphics.Palette
 import kotlinx.coroutines.Dispatchers
@@ -71,3 +72,15 @@ fun Color.lighten(amount: Float): Color = androidx.compose.ui.graphics.lerp(
 
 /** Black or white, whichever stays readable on this background. */
 fun Color.readableOn(): Color = if (luminance() > 0.4f) Color.Black else Color.White
+
+/**
+ * Same hue and lightness, less saturation. For elements that should read as
+ * related to an accent colour without competing with whatever actually uses
+ * it at full strength (e.g. skip buttons next to a filled play button).
+ */
+fun Color.desaturate(amount: Float): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(toArgb(), hsv)
+    hsv[1] *= (1f - amount.coerceIn(0f, 1f))
+    return Color(android.graphics.Color.HSVToColor(hsv))
+}

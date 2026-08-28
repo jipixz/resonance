@@ -29,8 +29,12 @@ import kotlinx.coroutines.launch
 sealed interface DetailTarget {
     val title: String
 
-    data class Album(val albumId: Long, override val title: String, val subtitle: String) :
-        DetailTarget
+    data class Album(
+        val albumId: Long,
+        override val title: String,
+        val subtitle: String,
+        val year: Int,
+    ) : DetailTarget
 
     data class Artist(override val title: String) : DetailTarget
 

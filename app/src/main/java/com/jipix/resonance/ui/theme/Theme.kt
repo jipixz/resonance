@@ -1,14 +1,39 @@
 package com.jipix.resonance.ui.theme
 
 import android.os.Build
+import androidx.compose.foundation.LocalOverscrollFactory
+import androidx.compose.foundation.OverscrollEffect
+import androidx.compose.foundation.OverscrollFactory
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberPlatformOverscrollFactory
+import androidx.compose.foundation.withoutVisualEffect
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+
+/**
+ * Keeps the platform overscroll's event handling — a scroll dragged past a list's
+ * edge is still absorbed locally — while dropping its visual stretch/glow. Without
+ * that absorption, dragging past the end of a list *inside* a bottom sheet (the
+ * queue) leaks the leftover drag into the sheet's own nested-scroll connection,
+ * which nudges the whole sheet and springs it back — a bigger, worse "jump" than
+ * the stretch it was meant to replace. [com.jipix.resonance.ui.library.ScrollEndFade]
+ * supplies the boundary cue instead.
+ */
+private class QuietOverscrollFactory(private val platform: OverscrollFactory) : OverscrollFactory {
+    override fun createOverscrollEffect(): OverscrollEffect =
+        platform.createOverscrollEffect().withoutVisualEffect()
+
+    override fun hashCode(): Int = platform.hashCode()
+    override fun equals(other: Any?): Boolean =
+        other is QuietOverscrollFactory && other.platform == platform
+}
 
 /**
  * Collapses every surface tier onto true black. Keeps the dynamic accent colours
@@ -47,10 +72,16 @@ fun ResonanceTheme(
     }
 
     val scheme = if (darkTheme && amoled) base.toAmoled() else base
+    val platformOverscroll = rememberPlatformOverscrollFactory()
+    val quietOverscroll = remember(platformOverscroll) { QuietOverscrollFactory(platformOverscroll) }
 
     MaterialTheme(
         colorScheme = scheme,
         typography = ResonanceTypography,
-        content = content,
-    )
+    ) {
+        // The platform's stretch overscroll reads as too strong for this app's
+        // motion — lists jump rather than ease. Scroll edges get a quieter
+        // gradient cue of their own instead (see ScrollEndFade).
+        CompositionLocalProvider(LocalOverscrollFactory provides quietOverscroll, content = content)
+    }
 }
