@@ -1,25 +1,31 @@
 package com.jipix.resonance.ui.library
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -32,9 +38,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +60,87 @@ import com.jipix.resonance.data.db.SongEntity
 import com.jipix.resonance.data.media.MediaStoreScanner
 import java.util.Locale
 
+/**
+ * The pre-Android-12 EdgeEffect glow — a wide, shallow tinted arc that flares
+ * in while a scroll gesture is pulling against a boundary and eases back out
+ * once it ends, rather than sitting there. The platform's own stretch
+ * overscroll is switched off app-wide (see `ResonanceTheme`, and `QueueSheet`'s
+ * doc comment for why plain removal wasn't enough inside a bottom-sheet-shaped
+ * container) because its bounce read as too strong; this replaces it with
+ * something closer to what the user actually asked for — a transient glow, not
+ * a boundary state that just sits there.
+ *
+ * This is an approximation, not the real `EdgeEffect`: the public
+ * `OverscrollEffect` API does not expose per-edge state or pull distance, only
+ * a single `isInProgress` flag with no directionality — so this drives off
+ * [LazyListState.isScrollInProgress]/[LazyGridState.isScrollInProgress]
+ * instead, gated to whichever edge is actually the current boundary.
+ */
+@Composable
+fun BoxScope.EdgeGlow(
+    atTop: Boolean,
+    atBottom: Boolean,
+    active: Boolean,
+    color: Color = MaterialTheme.colorScheme.primary,
+) {
+    GlowArc(
+        visible = atTop && active,
+        atTop = true,
+        color = color,
+        modifier = Modifier.align(Alignment.TopCenter),
+    )
+    GlowArc(
+        visible = atBottom && active,
+        atTop = false,
+        color = color,
+        modifier = Modifier.align(Alignment.BottomCenter),
+    )
+}
+
+@Composable
+private fun GlowArc(visible: Boolean, atTop: Boolean, color: Color, modifier: Modifier) {
+    // Quick to flare in, slower to retract — an instant appearance reads as
+    // "caught you pulling", while the retreat needs to be visible to land as
+    // "retracting" rather than just popping out.
+    val alpha by animateFloatAsState(
+        targetValue = if (visible) 0.85f else 0f,
+        animationSpec = tween(if (visible) 100 else 380),
+        label = "glowAlpha",
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (visible) 1f else 0.55f,
+        animationSpec = tween(if (visible) 100 else 380),
+        label = "glowScale",
+    )
+    if (alpha <= 0.001f) return
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .graphicsLayer {
+                this.alpha = alpha
+                scaleX = scale
+                scaleY = scale
+                // Scales toward the edge it hugs, not the arc's own centre —
+                // it should shrink back *into* the boundary, not inward on
+                // itself.
+                transformOrigin = TransformOrigin(0.5f, if (atTop) 0f else 1f)
+            }
+            .drawWithCache {
+                // Centred well outside the box so only its cap is visible —
+                // the classic flattened "semicircle" shape, not a full circle.
+                val centerY = if (atTop) -size.height * 0.7f else size.height * 1.7f
+                val brush = Brush.radialGradient(
+                    colors = listOf(color.copy(alpha = 0.6f), color.copy(alpha = 0f)),
+                    center = Offset(size.width / 2f, centerY),
+                    radius = size.width * 0.8f,
+                )
+                onDrawBehind { drawRect(brush) }
+            },
+    )
+}
+
 @Composable
 fun SongList(
     songs: List<SongEntity>,
@@ -55,18 +149,27 @@ fun SongList(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = contentPadding,
-    ) {
-        // Keyed so a rescan animates rows instead of rebuilding the whole list.
-        itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-            SongRow(
-                song = song,
-                onClick = { onPlay(index) },
-                onLongClick = { onSongMenu(song) },
-            )
+    val listState = rememberLazyListState()
+    Box(modifier.fillMaxSize()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+        ) {
+            // Keyed so a rescan animates rows instead of rebuilding the whole list.
+            itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                SongRow(
+                    song = song,
+                    onClick = { onPlay(index) },
+                    onLongClick = { onSongMenu(song) },
+                )
+            }
         }
+        EdgeGlow(
+            atTop = !listState.canScrollBackward,
+            atBottom = !listState.canScrollForward,
+            active = listState.isScrollInProgress,
+        )
     }
 }
 
@@ -133,16 +236,25 @@ fun AlbumGrid(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = 160.dp),
-        modifier = modifier.fillMaxSize(),
-        contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        items(albums, key = { it.albumId }) { album ->
-            AlbumCell(album = album, onClick = { onOpen(album) })
+    val gridState = rememberLazyGridState()
+    Box(modifier.fillMaxSize()) {
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 160.dp),
+            state = gridState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            items(albums, key = { it.albumId }) { album ->
+                AlbumCell(album = album, onClick = { onOpen(album) })
+            }
         }
+        EdgeGlow(
+            atTop = !gridState.canScrollBackward,
+            atBottom = !gridState.canScrollForward,
+            active = gridState.isScrollInProgress,
+        )
     }
 }
 
@@ -186,8 +298,11 @@ fun ArtistList(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
     ) {
         items(artists, key = { it.artist }) { artist ->
@@ -222,6 +337,12 @@ fun ArtistList(
             }
         }
     }
+        EdgeGlow(
+            atTop = !listState.canScrollBackward,
+            atBottom = !listState.canScrollForward,
+            active = listState.isScrollInProgress,
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -234,8 +355,11 @@ fun PlaylistList(
     contentPadding: PaddingValues,
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    Box(modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
         contentPadding = contentPadding,
     ) {
         item(key = "new") {
@@ -302,6 +426,12 @@ fun PlaylistList(
                 }
             }
         }
+    }
+        EdgeGlow(
+            atTop = !listState.canScrollBackward,
+            atBottom = !listState.canScrollForward,
+            active = listState.isScrollInProgress,
+        )
     }
 }
 

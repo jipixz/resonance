@@ -57,7 +57,7 @@ class PlaybackService : MediaSessionService() {
             .setSkipSilenceEnabled(false)
             .build()
 
-        crossfade = CrossfadeEngine(this, player, scope)
+        crossfade = CrossfadeEngine(this, player, scope, onAdvance = { crossfadeAdvancing = true })
         crossfade.start()
 
         player.addListener(StatsListener())
@@ -162,10 +162,17 @@ class PlaybackService : MediaSessionService() {
             val previous = lastItemId ?: return
             val repo = (application as ResonanceApp).container.musicRepository
 
+            // A crossfade advances the queue with the same seek reason a manual
+            // skip uses. The flag lets this transition be told apart from one the
+            // user actually triggered, so a faded-out track still counts as played.
+            val fromCrossfade = crossfadeAdvancing
+            crossfadeAdvancing = false
+
             scope.launch {
-                when (reason) {
-                    Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> repo.recordPlay(previous)
-                    Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> repo.recordSkip(previous)
+                when {
+                    fromCrossfade -> repo.recordPlay(previous)
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> repo.recordPlay(previous)
+                    reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> repo.recordSkip(previous)
                     else -> Unit
                 }
             }
@@ -180,4 +187,5 @@ class PlaybackService : MediaSessionService() {
     }
 
     private var lastItemId: Long? = null
+    private var crossfadeAdvancing = false
 }

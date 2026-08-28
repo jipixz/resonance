@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Search
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -240,10 +242,26 @@ private fun ResonanceRoot(
                 snackbarHost = {
                     SnackbarHost(
                         hostState = snackbarHostState,
-                        // Lifted clear of the mini player so it does not cover the
-                        // transport controls while it is showing.
-                        modifier = Modifier.padding(bottom = 72.dp),
-                    )
+                        // Scaffold already lifts this clear of bottomBar's own
+                        // height; a fixed offset on top of that (what used to be
+                        // here) double-counts it and floats the snackbar too high.
+                        modifier = Modifier.padding(bottom = 2.dp),
+                    ) { data ->
+                        // The M3 default snackbar deliberately inverts against the
+                        // theme (light chip on a dark app, dark chip on a light
+                        // one) for contrast. That reads as "wrong theme" here, so
+                        // it follows the app's own surface colours instead.
+                        Snackbar(
+                            snackbarData = data,
+                            shape = RoundedCornerShape(16.dp),
+                            // A lower tonal step than Highest — darker, closer
+                            // to the base surface — since Highest read as too
+                            // light/generic against the rest of the theme.
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            actionColor = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 },
                 topBar = {
                     Column {
@@ -339,6 +357,7 @@ private fun ResonanceRoot(
                                                 albumId = album.albumId,
                                                 title = album.album,
                                                 subtitle = album.albumArtist,
+                                                year = album.year,
                                             )
                                         )
                                     },
@@ -471,35 +490,43 @@ private fun ResonanceRoot(
                     onCycleRepeat = viewModel::cycleRepeat,
                 )
             }
-        }
-    }
 
-    if (showQueue) {
-        QueueSheet(
-            queue = queue,
-            currentIndex = playback.queueIndex,
-            positionMs = playback.positionMs,
-            palette = palette,
-            tapPlays = settings.queueTapPlays,
-            closeOnTap = settings.queueClosesOnTap,
-            onPlayItem = { index ->
-                viewModel.playQueueItem(index, settings.queueTapPlays)
-                if (settings.queueClosesOnTap) showQueue = false
-            },
-            onMoveItem = viewModel::moveQueueItem,
-            onShuffle = {
-                viewModel.shuffleQueue()
-                queue = viewModel.queueSnapshot()
-            },
-            onRemoveDuplicates = {
-                viewModel.removeQueueDuplicates()
-                queue = viewModel.queueSnapshot()
-            },
-            onSaveAsPlaylist = { savingQueue = true },
-            onSetTapPlays = { scope.launch { settingsStore.setQueueTapPlays(it) } },
-            onSetCloseOnTap = { scope.launch { settingsStore.setQueueClosesOnTap(it) } },
-            onDismiss = { showQueue = false },
-        )
+            // Layered above the player screen it opens from, not as a separate
+            // Popup/window the way ModalBottomSheet was — see QueueSheet's own
+            // doc comment for why it moved off that component.
+            AnimatedVisibility(
+                visible = showQueue,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
+            ) {
+                QueueSheet(
+                    queue = queue,
+                    currentIndex = playback.queueIndex,
+                    positionMs = playback.positionMs,
+                    isPlaying = playback.isPlaying,
+                    palette = palette,
+                    tapPlays = settings.queueTapPlays,
+                    closeOnTap = settings.queueClosesOnTap,
+                    onPlayItem = { index ->
+                        viewModel.playQueueItem(index, settings.queueTapPlays)
+                        if (settings.queueClosesOnTap) showQueue = false
+                    },
+                    onMoveItem = viewModel::moveQueueItem,
+                    onShuffle = {
+                        viewModel.shuffleQueue()
+                        queue = viewModel.queueSnapshot()
+                    },
+                    onRemoveDuplicates = {
+                        viewModel.removeQueueDuplicates()
+                        queue = viewModel.queueSnapshot()
+                    },
+                    onSaveAsPlaylist = { savingQueue = true },
+                    onSetTapPlays = { scope.launch { settingsStore.setQueueTapPlays(it) } },
+                    onSetCloseOnTap = { scope.launch { settingsStore.setQueueClosesOnTap(it) } },
+                    onDismiss = { showQueue = false },
+                )
+            }
+        }
     }
 
     menuSong?.let { song ->
@@ -543,12 +570,16 @@ private fun ResonanceRoot(
         )
     }
 
-    // Back peels off one overlay at a time before it leaves the app.
-    BackHandler(enabled = showPlayer) { showPlayer = false }
-    BackHandler(enabled = showSearch && !showPlayer) { showSearch = false }
-    BackHandler(enabled = showFolders && !showPlayer && !showSearch) { showFolders = false }
+    // Back peels off one overlay at a time before it leaves the app. The queue
+    // opens on top of the player, so it takes priority over it here too.
+    BackHandler(enabled = showQueue) { showQueue = false }
+    BackHandler(enabled = showPlayer && !showQueue) { showPlayer = false }
+    BackHandler(enabled = showSearch && !showPlayer && !showQueue) { showSearch = false }
     BackHandler(
-        enabled = detail != null && !showPlayer && !showSearch && !showFolders
+        enabled = showFolders && !showPlayer && !showSearch && !showQueue
+    ) { showFolders = false }
+    BackHandler(
+        enabled = detail != null && !showPlayer && !showSearch && !showFolders && !showQueue
     ) { viewModel.closeDetail() }
 }
 

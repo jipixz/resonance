@@ -143,6 +143,7 @@ fun PlayerScreen(
     var heightPx by remember { mutableFloatStateOf(0f) }
 
     val palette = rememberPlayerPalette(state.artworkUri, artworkTint)
+    val output = rememberAudioOutput()
     val landscape =
         LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -222,6 +223,7 @@ fun PlayerScreen(
                 LandscapeBody(
                     state = state,
                     palette = palette,
+                    output = output,
                     infoLine = infoLine,
                     onCycleInfoLine = onCycleInfoLine,
                     onPlayPause = onPlayPause,
@@ -236,6 +238,7 @@ fun PlayerScreen(
                 PortraitBody(
                     state = state,
                     palette = palette,
+                    output = output,
                     infoLine = infoLine,
                     onCycleInfoLine = onCycleInfoLine,
                     onPlayPause = onPlayPause,
@@ -271,6 +274,7 @@ fun PlayerScreen(
 private fun PortraitBody(
     state: PlaybackUiState,
     palette: PlayerPalette,
+    output: AudioOutput,
     infoLine: InfoLine,
     onCycleInfoLine: () -> Unit,
     onPlayPause: () -> Unit,
@@ -319,6 +323,10 @@ private fun PortraitBody(
             color = palette.subdued,
         )
 
+        // Centred in the space between the controls and the queue chevron
+        // below this whole block, rather than crowding either one.
+        Spacer(Modifier.weight(1f))
+        PlayingOnRow(output = output, palette = palette)
         Spacer(Modifier.weight(1f))
     }
 }
@@ -331,6 +339,7 @@ private fun PortraitBody(
 private fun LandscapeBody(
     state: PlaybackUiState,
     palette: PlayerPalette,
+    output: AudioOutput,
     infoLine: InfoLine,
     onCycleInfoLine: () -> Unit,
     onPlayPause: () -> Unit,
@@ -389,6 +398,8 @@ private fun LandscapeBody(
                 onCycle = onCycleInfoLine,
                 color = palette.subdued,
             )
+            Spacer(Modifier.height(12.dp))
+            PlayingOnRow(output = output, palette = palette)
         }
     }
 }
@@ -506,7 +517,10 @@ private fun PlayingFromHeader(
     ) {
         IconButton(
             onClick = onCollapse,
-            modifier = Modifier.align(Alignment.CenterStart),
+            // Pulled back toward the true screen edge — the screen's own 24dp
+            // horizontal padding otherwise leaves it stranded well past where a
+            // collapse/back affordance normally sits.
+            modifier = Modifier.align(Alignment.CenterStart).offset(x = (-16).dp),
         ) {
             Icon(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
@@ -538,6 +552,33 @@ private fun PlayingFromHeader(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** Read-only echo of Spotify's "playing on" line — see [rememberAudioOutput]. */
+@Composable
+private fun PlayingOnRow(output: AudioOutput, palette: PlayerPalette) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = output.icon,
+            contentDescription = null,
+            tint = palette.subdued,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            text = output.label,
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.subdued,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 6.dp),
+        )
     }
 }
 
@@ -645,6 +686,14 @@ private fun TransportControls(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
 ) {
+    // Related to the play button's colour rather than the plain body text
+    // colour, but quieter — full palette.active on a small icon would compete
+    // with the filled play button for attention.
+    val skipTint = palette.active.desaturate(0.55f)
+    // Distinctly greyer than palette.subdued (used for merely secondary text)
+    // so the start/end of the queue with repeat off reads as genuinely inert.
+    val disabledSkipTint = palette.content.copy(alpha = 0.28f)
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -658,11 +707,13 @@ private fun TransportControls(
             )
         }
 
-        IconButton(onClick = onPrevious) {
+        IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
             Icon(
                 imageVector = Icons.Rounded.SkipPrevious,
+                // Greyed out at the start of the queue with repeat off, so
+                // reaching the end reads without having to open it.
                 contentDescription = "Anterior",
-                tint = palette.content,
+                tint = if (state.hasPrevious) skipTint else disabledSkipTint,
                 modifier = Modifier.size(36.dp),
             )
         }
@@ -682,11 +733,11 @@ private fun TransportControls(
             )
         }
 
-        IconButton(onClick = onNext) {
+        IconButton(onClick = onNext, enabled = state.hasNext) {
             Icon(
                 imageVector = Icons.Rounded.SkipNext,
                 contentDescription = "Siguiente",
-                tint = palette.content,
+                tint = if (state.hasNext) skipTint else disabledSkipTint,
                 modifier = Modifier.size(36.dp),
             )
         }

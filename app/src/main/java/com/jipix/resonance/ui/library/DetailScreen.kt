@@ -236,7 +236,11 @@ private fun DetailHeader(
                     overflow = TextOverflow.Ellipsis,
                 )
                 val subtitle = when (target) {
-                    is DetailTarget.Album -> target.subtitle
+                    is DetailTarget.Album -> if (target.year > 0) {
+                        "${target.subtitle} · ${target.year}"
+                    } else {
+                        target.subtitle
+                    }
                     else -> null
                 }
                 if (subtitle != null) {
