@@ -161,10 +161,18 @@ class LibraryViewModel(
 
     fun queueSnapshot(): List<QueueItem> = player.snapshotQueue()
 
+    fun queueItemAt(index: Int): QueueItem? = player.queueItemAt(index)
+
     fun playQueueItem(index: Int, autoPlay: Boolean = true) =
         player.playQueueItem(index, autoPlay)
 
     fun moveQueueItem(from: Int, to: Int) = player.moveQueueItem(from, to)
+
+    fun removeQueueItem(index: Int) = player.removeQueueItem(index)
+
+    fun setSleepTimer(minutes: Int, finishTrack: Boolean) = player.setSleepTimer(minutes, finishTrack)
+
+    fun cancelSleepTimer() = player.cancelSleepTimer()
 
     fun shuffleQueue() = player.shuffleUpcoming()
 

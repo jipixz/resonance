@@ -6,6 +6,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -21,7 +22,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -35,9 +38,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Pause
@@ -56,12 +62,14 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +85,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -84,6 +93,7 @@ import androidx.media3.common.Player
 import coil3.compose.AsyncImage
 import com.jipix.resonance.core.InfoLine
 import com.jipix.resonance.playback.PlaybackUiState
+import com.jipix.resonance.playback.QueueItem
 import com.jipix.resonance.ui.library.asClock
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -91,7 +101,6 @@ import kotlin.math.roundToInt
 /** The artwork and metadata as one unit, so a track change animates them together. */
 private data class TrackVisual(
     val index: Int,
-    val artworkUri: String?,
     val title: String,
     val artist: String,
 )
@@ -129,6 +138,10 @@ fun PlayerScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onOpenQueue: () -> Unit,
+    onSetSleepTimer: (minutes: Int, finishTrack: Boolean) -> Unit,
+    onCancelSleepTimer: () -> Unit,
+    queueItemAt: (Int) -> QueueItem?,
+    onSeekQueueIndex: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Drag-to-dismiss.
@@ -141,6 +154,7 @@ fun PlayerScreen(
     val offsetY = remember { Animatable(0f) }
     val dragScope = rememberCoroutineScope()
     var heightPx by remember { mutableFloatStateOf(0f) }
+    var showSleepTimer by remember { mutableStateOf(false) }
 
     val palette = rememberPlayerPalette(state.artworkUri, artworkTint)
     val output = rememberAudioOutput()
@@ -210,13 +224,15 @@ fun PlayerScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
-                .padding(horizontal = 24.dp),
+                .systemBarsPadding(),
         ) {
             PlayingFromHeader(
                 album = state.album,
                 palette = palette,
+                sleepTimerActive = state.sleepTimerEndAtMs != null,
                 onCollapse = onCollapse,
+                onOpenSleepTimer = { showSleepTimer = true },
+                modifier = Modifier.padding(horizontal = 24.dp),
             )
 
             if (landscape) {
@@ -224,6 +240,8 @@ fun PlayerScreen(
                     state = state,
                     palette = palette,
                     output = output,
+                    queueItemAt = queueItemAt,
+                    onSeekQueueIndex = onSeekQueueIndex,
                     infoLine = infoLine,
                     onCycleInfoLine = onCycleInfoLine,
                     onPlayPause = onPlayPause,
@@ -239,6 +257,8 @@ fun PlayerScreen(
                     state = state,
                     palette = palette,
                     output = output,
+                    queueItemAt = queueItemAt,
+                    onSeekQueueIndex = onSeekQueueIndex,
                     infoLine = infoLine,
                     onCycleInfoLine = onCycleInfoLine,
                     onPlayPause = onPlayPause,
@@ -268,13 +288,24 @@ fun PlayerScreen(
             }
         }
     }
+
+    if (showSleepTimer) {
+        SleepTimerDialog(
+            endAtMs = state.sleepTimerEndAtMs,
+            onSet = onSetSleepTimer,
+            onCancel = onCancelSleepTimer,
+            onDismiss = { showSleepTimer = false },
+        )
+    }
 }
 
 @Composable
 private fun PortraitBody(
     state: PlaybackUiState,
     palette: PlayerPalette,
-    output: AudioOutput,
+    output: AudioOutput?,
+    queueItemAt: (Int) -> QueueItem?,
+    onSeekQueueIndex: (Int) -> Unit,
     infoLine: InfoLine,
     onCycleInfoLine: () -> Unit,
     onPlayPause: () -> Unit,
@@ -286,42 +317,56 @@ private fun PortraitBody(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
+        // A fixed floor of breathing room under the header, on top of the
+        // weighted spacer below — the weight alone still let the cover ride
+        // right up against the header text on shorter screens.
+        Spacer(Modifier.height(24.dp))
+
         // Weighted 1.4 above against 1 below so the cover sits below the optical
         // centre rather than riding high against the header.
         Spacer(Modifier.weight(1.4f))
 
-        TrackBlock(state = state, palette = palette) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(palette.content.copy(alpha = 0.08f)),
-                contentAlignment = Alignment.Center,
-            ) {
-                CoverImage(uri = it, palette = palette)
-            }
-        }
-
-        Spacer(Modifier.height(24.dp))
-
-        Scrubber(state = state, onSeek = onSeek, palette = palette)
-        Spacer(Modifier.height(8.dp))
-        TransportControls(
+        // Deliberately not inside the 24dp-padded column below: the current
+        // cover fills exactly the same width it always did (the pager's own
+        // contentPadding reproduces that inset), but the *carousel* itself
+        // runs edge-to-edge, so the neighbouring covers peek into what used
+        // to be dead margin at the true screen edge instead of eating into
+        // the current cover's own size.
+        CoverCarousel(
             state = state,
             palette = palette,
-            onPlayPause = onPlayPause,
-            onNext = onNext,
-            onPrevious = onPrevious,
-            onToggleShuffle = onToggleShuffle,
-            onCycleRepeat = onCycleRepeat,
+            queueItemAt = queueItemAt,
+            onSeekQueueIndex = onSeekQueueIndex,
+            edgePeek = 24.dp,
+            sizeFromWidth = true,
+            modifier = Modifier.fillMaxWidth(),
         )
-        InfoLineText(
-            state = state,
-            infoLine = infoLine,
-            onCycle = onCycleInfoLine,
-            color = palette.subdued,
-        )
+
+        Column(modifier = Modifier.padding(horizontal = 24.dp)) {
+            Spacer(Modifier.height(32.dp))
+
+            TrackBlock(state = state, palette = palette)
+
+            Spacer(Modifier.height(24.dp))
+
+            Scrubber(state = state, onSeek = onSeek, palette = palette)
+            Spacer(Modifier.height(8.dp))
+            TransportControls(
+                state = state,
+                palette = palette,
+                onPlayPause = onPlayPause,
+                onNext = onNext,
+                onPrevious = onPrevious,
+                onToggleShuffle = onToggleShuffle,
+                onCycleRepeat = onCycleRepeat,
+            )
+            InfoLineText(
+                state = state,
+                infoLine = infoLine,
+                onCycle = onCycleInfoLine,
+                color = palette.subdued,
+            )
+        }
 
         // Centred in the space between the controls and the queue chevron
         // below this whole block, rather than crowding either one.
@@ -339,7 +384,9 @@ private fun PortraitBody(
 private fun LandscapeBody(
     state: PlaybackUiState,
     palette: PlayerPalette,
-    output: AudioOutput,
+    output: AudioOutput?,
+    queueItemAt: (Int) -> QueueItem?,
+    onSeekQueueIndex: (Int) -> Unit,
     infoLine: InfoLine,
     onCycleInfoLine: () -> Unit,
     onPlayPause: () -> Unit,
@@ -351,7 +398,10 @@ private fun LandscapeBody(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier = modifier.fillMaxWidth(),
+        // Landscape lost the screen's blanket 24dp inset when the cover
+        // carousel needed to bleed past it in portrait — this is what
+        // restores it here, where there is no edge to bleed into anyway.
+        modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
@@ -359,20 +409,19 @@ private fun LandscapeBody(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            TrackBlock(state = state, palette = palette, centred = true) {
-                Box(
-                    modifier = Modifier
-                        // Sized off the available height, not the width, or the
-                        // square would overflow the short axis.
-                        .fillMaxHeight(0.62f)
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(palette.content.copy(alpha = 0.08f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CoverImage(uri = it, palette = palette)
-                }
-            }
+            CoverCarousel(
+                state = state,
+                palette = palette,
+                queueItemAt = queueItemAt,
+                onSeekQueueIndex = onSeekQueueIndex,
+                edgePeek = 12.dp,
+                sizeFromWidth = false,
+                // Sized off the available height, not the width, or the
+                // square would overflow the short axis.
+                modifier = Modifier.fillMaxHeight(0.62f),
+            )
+            Spacer(Modifier.height(20.dp))
+            TrackBlock(state = state, palette = palette, centred = true)
         }
 
         Spacer(Modifier.width(32.dp))
@@ -404,18 +453,22 @@ private fun LandscapeBody(
     }
 }
 
-/** Cover plus title and artist, animated as one when the track changes. */
+/**
+ * Title and artist, animated as their own slide when the track changes. Used
+ * to also carry the cover in the same `AnimatedContent`, but that fought with
+ * [CoverCarousel]'s own drag-driven paging once the cover became swipeable —
+ * two systems both trying to own the same horizontal motion. The cover now
+ * animates entirely on its own; this only ever handles the text.
+ */
 @Composable
 private fun TrackBlock(
     state: PlaybackUiState,
     palette: PlayerPalette,
     centred: Boolean = false,
-    cover: @Composable (String?) -> Unit,
 ) {
     AnimatedContent(
         targetState = TrackVisual(
             index = state.queueIndex,
-            artworkUri = state.artworkUri,
             title = state.title,
             artist = state.artist,
         ),
@@ -436,10 +489,6 @@ private fun TrackBlock(
                 Alignment.Start
             },
         ) {
-            cover(visual.artworkUri)
-
-            Spacer(Modifier.height(if (centred) 20.dp else 32.dp))
-
             MarqueeText(
                 text = visual.title,
                 style = MaterialTheme.typography.headlineSmall,
@@ -458,6 +507,110 @@ private fun TrackBlock(
                     .padding(top = 4.dp),
             )
         }
+    }
+}
+
+/**
+ * The cover as a real drag-along carousel — Deezer's, not a detect-then-jump
+ * gesture (tried first; without the finger actually moving anything until
+ * release, it read as unresponsive rather than swipeable). A finished drag
+ * that settles on a neighbouring page is what actually changes the track —
+ * [onSeekQueueIndex] fires from watching [PagerState.settledPage], which only
+ * updates once a scroll/fling genuinely finishes, so a mid-drag position
+ * never fires it. External track changes (buttons, auto-advance) are pushed
+ * back the other way with `animateScrollToPage`, guarded by
+ * `!isScrollInProgress` so they never fight a gesture already in flight.
+ */
+@Composable
+private fun CoverCarousel(
+    state: PlaybackUiState,
+    palette: PlayerPalette,
+    queueItemAt: (Int) -> QueueItem?,
+    onSeekQueueIndex: (Int) -> Unit,
+    edgePeek: Dp,
+    // Portrait gives this a fixed *width* (the screen, edge to edge) and lets
+    // the square's height follow; landscape gives it a fixed *height* (a
+    // fraction of the available height) and lets the square's width follow.
+    // contentPadding only ever eats into the horizontal axis, so whichever
+    // dimension the caller *didn't* fix has to be derived by hand below, or
+    // the peek carves into one axis without the other matching — a stretched
+    // cover, not a square one.
+    sizeFromWidth: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (state.queueCount <= 0) {
+        // No pager here to derive the square from the caller's fixed
+        // dimension (see the sizeFromWidth doc above), so this establishes it
+        // directly instead.
+        CoverBox(uri = state.artworkUri, palette = palette, modifier = modifier.aspectRatio(1f))
+        return
+    }
+
+    val pagerState = rememberPagerState(initialPage = state.queueIndex) { state.queueCount }
+
+    LaunchedEffect(state.queueIndex, state.queueCount) {
+        val target = state.queueIndex.coerceIn(0, state.queueCount - 1)
+        if (!pagerState.isScrollInProgress && pagerState.currentPage != target) {
+            // The pager's own default spring covers one page almost instantly —
+            // fine for a manual fling, but a button tap has no finger motion to
+            // read the speed off of, so the snap-cut read as jarring. A fixed
+            // tween gives every button-triggered page change the same, slower,
+            // deliberate motion regardless of distance.
+            pagerState.animateScrollToPage(
+                page = target,
+                animationSpec = tween(durationMillis = 650, easing = FastOutSlowInEasing),
+            )
+        }
+    }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.settledPage }.collect { settled ->
+            if (settled != state.queueIndex) onSeekQueueIndex(settled)
+        }
+    }
+
+    BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
+        val pageSize = if (sizeFromWidth) maxWidth - edgePeek * 2 else maxHeight
+        val pagerWidth = if (sizeFromWidth) maxWidth else pageSize + edgePeek * 2
+        val pagerHeight = if (sizeFromWidth) pageSize else maxHeight
+
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.width(pagerWidth).height(pagerHeight),
+            // This is the whole trick: each page's own width is the pager's
+            // width minus this padding, so making it equal to whatever margin
+            // the caller would otherwise have reserved is what keeps the
+            // current cover exactly the size it always was — the neighbours
+            // peek into that margin rather than shrinking the current cover
+            // to make room for themselves.
+            contentPadding = PaddingValues(horizontal = edgePeek),
+            pageSpacing = 8.dp,
+        ) { page ->
+            // Deliberately never reads state.artworkUri here, even for the page
+            // that is currently "current" — that field arrives from the real
+            // player's own callback, one step behind state.queueIndex advancing,
+            // and mixing it in produced a one-frame flash of the *previous*
+            // track's art on the page that had already become current.
+            // queueItemAt is plain queue data with no such lag, so every page —
+            // neighbours and current alike — reads from the same single source.
+            val uri = remember(page, state.queueCount) { queueItemAt(page)?.artworkUri }
+            CoverBox(uri = uri, palette = palette, modifier = Modifier.fillMaxSize())
+        }
+    }
+}
+
+/** No `aspectRatio` here — the caller's [modifier] already establishes the
+ * square (see [CoverCarousel]'s own callers), and applying it a second time
+ * to a page already constrained by the pager's own size does not behave the
+ * same way as applying it once to the pager itself. */
+@Composable
+private fun CoverBox(uri: String?, palette: PlayerPalette, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(palette.content.copy(alpha = 0.08f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        CoverImage(uri = uri, palette = palette)
     }
 }
 
@@ -507,13 +660,18 @@ private fun MarqueeText(
 private fun PlayingFromHeader(
     album: String,
     palette: PlayerPalette,
+    sleepTimerActive: Boolean,
     onCollapse: () -> Unit,
+    onOpenSleepTimer: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             // Pushed down off the status bar so it does not read as a title bar.
-            .padding(top = 12.dp, bottom = 4.dp),
+            // Symmetric so the text truly sits centred between the icon
+            // buttons flanking it, rather than skewed toward the top.
+            .padding(vertical = 12.dp),
     ) {
         IconButton(
             onClick = onCollapse,
@@ -526,6 +684,21 @@ private fun PlayingFromHeader(
                 imageVector = Icons.Rounded.KeyboardArrowDown,
                 contentDescription = "Contraer",
                 tint = palette.content,
+            )
+        }
+
+        IconButton(
+            onClick = onOpenSleepTimer,
+            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 16.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Bedtime,
+                contentDescription = "Temporizador de apagado",
+                // Same on/dim-off language as the skip buttons at the ends of
+                // the queue — one icon, colour is the only thing that toggles.
+                // Swapping to a crossed-out glyph for "off" read as broken
+                // rather than "not currently set".
+                tint = if (sleepTimerActive) palette.active else palette.content.copy(alpha = 0.28f),
             )
         }
 
@@ -557,7 +730,8 @@ private fun PlayingFromHeader(
 
 /** Read-only echo of Spotify's "playing on" line — see [rememberAudioOutput]. */
 @Composable
-private fun PlayingOnRow(output: AudioOutput, palette: PlayerPalette) {
+private fun PlayingOnRow(output: AudioOutput?, palette: PlayerPalette) {
+    if (output == null) return
     Row(
         modifier = Modifier
             .fillMaxWidth()

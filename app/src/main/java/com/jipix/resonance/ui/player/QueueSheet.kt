@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreVert
@@ -42,12 +43,16 @@ import androidx.compose.material.icons.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -145,6 +150,7 @@ fun QueueSheet(
     closeOnTap: Boolean,
     onPlayItem: (Int) -> Unit,
     onMoveItem: (Int, Int) -> Unit,
+    onRemoveItem: (Int) -> Unit,
     onShuffle: () -> Unit,
     onRemoveDuplicates: () -> Unit,
     onSaveAsPlaylist: () -> Unit,
@@ -414,6 +420,10 @@ fun QueueSheet(
                             draggingIndex = null
                             dragOffset = 0f
                         },
+                        onRemove = {
+                            items.removeAt(position)
+                            onRemoveItem(position)
+                        },
                     )
                 }
             }
@@ -437,6 +447,7 @@ fun QueueSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QueueRow(
     item: QueueItem,
@@ -449,7 +460,43 @@ private fun QueueRow(
     onDragStart: () -> Unit,
     onDrag: (Float) -> Unit,
     onDragEnd: () -> Unit,
+    onRemove: () -> Unit,
 ) {
+    // confirmValueChange (tried first) fires as the anchored-draggable state
+    // evaluates candidate targets while the drag is still in progress, not
+    // only once the user has actually let go on one — calling onRemove() from
+    // inside it fired too early or too often, which is exactly why a fast
+    // swipe deleted the row before its own animation had a chance to play,
+    // and a gentle one could leave it visually dismissed (red, trash icon)
+    // without ever actually being removed. Watching the settled value instead
+    // only reacts once a drag has genuinely finished animating into place.
+    val dismissState = rememberSwipeToDismissBoxState()
+    LaunchedEffect(dismissState.currentValue) {
+        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+            onRemove()
+        }
+    }
+    SwipeToDismissBox(
+        state = dismissState,
+        backgroundContent = {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(horizontal = 20.dp),
+                contentAlignment = when (dismissState.dismissDirection) {
+                    SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+                    else -> Alignment.CenterEnd
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Delete,
+                    contentDescription = "Quitar de la cola",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
+        },
+    ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -457,7 +504,11 @@ private fun QueueRow(
             .zIndex(if (dragging) 1f else 0f)
             .offset { IntOffset(0, dragOffset.roundToInt()) }
             .background(
-                if (dragging) palette.content.copy(alpha = 0.10f) else Color.Transparent
+                if (dragging) palette.content.copy(alpha = 0.10f)
+                // Swipe-to-dismiss needs an opaque row underneath it, or the
+                // sheet's own tinted background shows through the gap the
+                // background content is meant to fill during the swipe.
+                else if (palette.tinted) palette.mid else MaterialTheme.colorScheme.surface
             )
             .clickable(onClick = onClick)
             // Tighter to the edges than the library lists: this is a dense,
@@ -535,6 +586,7 @@ private fun QueueRow(
                     )
                 },
         )
+    }
     }
 }
 
