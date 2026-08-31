@@ -2,8 +2,8 @@
 
 # Resonance
 
-**Reproductor de música local para Android.**
-Las funciones de BlackPlayer EX, la piel de una app de Google, y la batería como primera restricción.
+**A local music player for Android.**
+BlackPlayer EX's feature set, a first-party Google app's skin, and battery as the first constraint.
 
 [![Android](https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.4.10-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
@@ -17,216 +17,218 @@ Las funciones de BlackPlayer EX, la piel de una app de Google, y la batería com
 [![Gradle](https://img.shields.io/badge/Gradle-9.7.1-02303A?style=flat-square&logo=gradle)](https://gradle.org)
 [![AGP](https://img.shields.io/badge/AGP-9.3.2-3DDC84?style=flat-square)](https://developer.android.com/build)
 
+*[Léelo en español](README.es.md)*
+
 </div>
 
 ---
 
-## Capturas
+## Screenshots
 
-> Reemplaza estos huecos con tus propias capturas: déjalas en `docs/screenshots/` con
-> estos nombres y se muestran solas.
+> Fill these gaps with your own screenshots: drop them in `docs/screenshots/` with
+> these names and they show up on their own.
 
-| Biblioteca | Reproductor | Cola |
+| Library | Player | Queue |
 |:---:|:---:|:---:|
-| ![Biblioteca](docs/screenshots/library.png) | ![Reproductor](docs/screenshots/player.png) | ![Cola](docs/screenshots/queue.png) |
+| ![Library](docs/screenshots/library.png) | ![Player](docs/screenshots/player.png) | ![Queue](docs/screenshots/queue.png) |
 
-| Menú lateral | Búsqueda | Horizontal |
+| Drawer | Search | Landscape |
 |:---:|:---:|:---:|
-| ![Menú](docs/screenshots/drawer.png) | ![Búsqueda](docs/screenshots/search.png) | ![Horizontal](docs/screenshots/landscape.png) |
+| ![Drawer](docs/screenshots/drawer.png) | ![Search](docs/screenshots/search.png) | ![Landscape](docs/screenshots/landscape.png) |
 
 ---
 
-## Por qué existe
+## Why it exists
 
-BlackPlayer EX hace todo lo que quiero de un reproductor local, pero **se come la batería
-escuchando de noche con la pantalla apagada**. Las razones son estructurales y ya están
-obsoletas, así que valía más rehacerlo que aguantarlo.
+BlackPlayer EX does everything I want from a local player, but it **drains the battery
+listening at night with the screen off**. The reasons are structural and already obsolete,
+so rebuilding it beat living with it.
 
-Dos restricciones mandan sobre todas las decisiones del proyecto:
+Two constraints drive every decision in this project:
 
-**1. Tiene que verse como una app de Google.** Material 3 / Material You, en la línea de
-Recorder, Gmail, Calculadora, Calendario, Clima, Drive y Fit — más la fluidez de Solid
-Explorer. Y explícitamente **no** como YouTube Music.
+**1. It has to look like a Google app.** Material 3 / Material You, in the spirit of
+Recorder, Gmail, Calculator, Calendar, Weather, Drive and Fit — plus the fluidity of Solid
+Explorer. And explicitly **not** like YouTube Music.
 
-**2. El coste en batería gana sobre el número de funciones.** Cuando una función y la
-autonomía chocan, gana la autonomía, y la función se envía opcional y apagada.
+**2. Battery cost outranks feature count.** When a feature and battery life conflict,
+battery wins, and the feature ships opt-in and disabled.
 
 ---
 
-## La arquitectura de batería
+## The battery architecture
 
-Esto es el corazón del proyecto, no un detalle de optimización.
+This is the heart of the project, not an optimization detail.
 
-| Mecanismo | Qué hace | Dónde |
+| Mechanism | What it does | Where |
 |---|---|---|
-| **Audio offload** | El DSP del chip decodifica y el CPU se duerme entre lotes | `PlaybackService.enableAudioOffload()` |
-| `WAKE_MODE_LOCAL` | ExoPlayer sostiene el wakelock solo mientras renderiza | `PlaybackService.onCreate()` |
-| Sondeo de 500 ms | Y solo mientras suena *y* la UI está recolectando | `PlayerConnection.startProgressTicker()` |
-| Parada limpia | El servicio se detiene si no queda nada en cola | `PlaybackService.onTaskRemoved()` |
+| **Audio offload** | The chip's DSP decodes, the CPU sleeps between batches | `PlaybackService.enableAudioOffload()` |
+| `WAKE_MODE_LOCAL` | ExoPlayer holds the wake lock only while rendering | `PlaybackService.onCreate()` |
+| 500 ms poll | And only while playing *and* the UI is collecting | `PlayerConnection.startProgressTicker()` |
+| Clean stop | The service stops when nothing is left queued | `PlaybackService.onTaskRemoved()` |
 
-### Qué es el offload
+### What offload is
 
-Un teléfono trae un **DSP de audio**: un procesador pequeño y especializado, aparte del
-CPU. Con offload le entregas el archivo comprimido y él lo decodifica. Sin offload, el CPU
-despierta cientos de veces por segundo a rellenar el búfer; con offload recibe varios
-segundos de golpe y se duerme hasta el siguiente lote.
+A phone ships with an **audio DSP**: a small, specialized processor separate from the CPU.
+With offload, you hand it the compressed file and it decodes. Without offload, the CPU
+wakes up hundreds of times a second to refill the buffer; with offload it receives several
+seconds at once and sleeps until the next batch.
 
-Se pide con `setIsGaplessSupportRequired(true)`: si un dispositivo no puede hacer ambas
-cosas, que **rechace** el offload antes que meter un silencio entre pistas.
+Requested with `setIsGaplessSupportRequired(true)`: if a device can't do both, it must
+**refuse** offload rather than insert a gap between tracks.
 
-### El compromiso del crossfade
+### The crossfade trade-off
 
-El DSP renderiza **un** stream, no dos. En cuanto quieres dos pistas sonando a la vez, el
-trabajo vuelve al CPU. Por eso el crossfade es opcional y viene apagado, y
-`PlaybackService` conmuta el offload automáticamente al encenderlo.
+The DSP renders **one** stream, not two. The moment you want two tracks playing at once,
+the work goes back to the CPU. That's why crossfade is opt-in and ships off, and
+`PlaybackService` automatically switches offload off when it's turned on.
 
-En absoluto es poco (decodificar ronda el 1-3 % de un núcleo), pero con la pantalla
-apagada eso pasa a ser lo único despierto en el teléfono.
-
----
-
-## Qué hace
-
-- **Biblioteca** — escaneo desde MediaStore, caché en Room, rescan incremental
-- **Navegación** — canciones, álbumes, artistas y listas, con pestañas deslizables
-- **Detalle** de álbum, artista y lista, en una sola pantalla compartida
-- **Reproducción** — sesión de medios, notificación, pantalla de bloqueo, Bluetooth
-- **Gapless** siempre, **crossfade** real opcional (3/6/10 s)
-- **Cola** — reordenar arrastrando, ir a la pista actual, aleatorizar lo que falta,
-  quitar duplicados, guardarla como lista, tiempo restante y total
-- **Listas** — crear, añadir, quitar, y portada en mosaico 2×2 o elegida
-- **Búsqueda** con debounce sobre la caché
-- **Lista negra de carpetas**, aplicada al consultar y no al escanear
-- **Material You** — color del fondo de pantalla, modo AMOLED real, teñido con la carátula
-- **Estadísticas** de reproducciones y saltos
+It's not much at all (decoding runs around 1–3% of one core), but with the screen off
+that becomes the only thing awake on the phone.
 
 ---
 
-## Decisiones de diseño que vale la pena conocer
+## What it does
 
-**Un solo `ExoPlayer`.** `PlaybackService` es su único dueño. La UI, la notificación,
-Bluetooth y la pantalla de bloqueo llegan a él por un `MediaController`, así que hay
-exactamente una fuente de verdad sobre qué suena.
+- **Library** — scanned from MediaStore, cached in Room, incremental rescan
+- **Browsing** — songs, albums, artists, and playlists, with swipeable tabs
+- **Detail** screens for album, artist, and playlist, sharing one layout
+- **Playback** — media session, notification, lock screen, Bluetooth
+- **Gapless** always, real **crossfade** opt-in (3/6/10 s)
+- **Queue** — drag to reorder, jump to current, shuffle what's left, drop
+  duplicates, save as a playlist, remaining/total time
+- **Playlists** — create, add, remove, 2×2 mosaic cover or a chosen one
+- **Search** with debounce over the cache
+- **Folder blacklist**, applied at query time, not at scan time
+- **Material You** — wallpaper-derived color, real AMOLED mode, artwork tinting
+- **Stats** for plays and skips
 
-**El escaneo lee el índice de MediaStore, no los archivos.** Una pasada de cursor en vez
-de miles de aperturas. `MusicRepository.sync()` compara `dateModified`, así que un
-arranque donde nada cambió cuesta una consulta y cero escrituras.
+---
 
-**Las exclusiones de carpeta se aplican al consultar.** Si se filtraran al escanear, una
-carpeta excluida desaparecería de su propia pantalla de ajustes y jamás podrías volver a
-activarla.
+## Design decisions worth knowing
 
-**El crossfade invierte el diseño obvio.** Media3 ata una sesión a un `Player` de por
-vida, así que en vez de alternar dos reproductores, el de la sesión siempre lleva la pista
-*entrante* y un segundo reproductor desechable desvanece la *saliente*. La costura cae en
-la pista que ya va camino al silencio.
+**A single `ExoPlayer`.** `PlaybackService` is its only owner. The UI, the notification,
+Bluetooth, and the lock screen all reach it through a `MediaController`, so there is
+exactly one source of truth for what's playing.
+
+**Scanning reads MediaStore's index, not the files.** One cursor pass instead of
+thousands of file opens. `MusicRepository.sync()` diffs on `dateModified`, so a launch
+where nothing changed costs one query and zero writes.
+
+**Folder exclusions are applied at query time.** Filtering them at scan time would make
+an excluded folder disappear from its own settings screen and you'd never be able to
+turn it back on.
+
+**Crossfade inverts the obvious design.** Media3 ties a session to one `Player` for its
+whole life, so instead of alternating between two players, the session's own player
+always carries the *incoming* track and a second, throwaway player fades out the
+*outgoing* one. The seam lands on the track that's already headed to silence.
 
 ---
 
 ## Stack
 
-| Capa | Qué se usa |
+| Layer | What's used |
 |---|---|
-| Lenguaje | Kotlin 2.4.10 |
+| Language | Kotlin 2.4.10 |
 | UI | Jetpack Compose + Material 3 (Compose BOM 2026.08.00) |
-| Reproducción | AndroidX Media3 / ExoPlayer 1.11.0 |
-| Persistencia | Room 2.8.4 (KSP), DataStore Preferences |
-| Imágenes | Coil 3.5.0 |
-| Color | AndroidX Palette (extracción desde la carátula) |
-| Inyección | `AppContainer` hecho a mano — sin framework |
+| Playback | AndroidX Media3 / ExoPlayer 1.11.0 |
+| Persistence | Room 2.8.4 (KSP), DataStore Preferences |
+| Images | Coil 3.5.0 |
+| Color | AndroidX Palette (extracted from artwork) |
+| DI | Hand-rolled `AppContainer` — no framework |
 | Build | Gradle 9.7.1, AGP 9.3.2, JDK 25 |
 
-Sin Hilt, sin Retrofit, sin Navigation-compose real: el proyecto es lo bastante chico como
-para que cada framework cueste más complejidad de build de la que quita.
+No Hilt, no Retrofit, no real Navigation-Compose: the project is small enough that each
+framework would cost more build complexity than it removes.
 
 ---
 
-## Primeros pasos
+## Getting started
 
-### Requisitos
+### Requirements
 
-- **Android Studio** (versión estable reciente) — trae su propio JDK y el SDK
-- **JDK 25** — el que viene con Android Studio (`Settings → Build Tools → Gradle → Gradle JDK`)
-- Un dispositivo o emulador con **Android 11 o superior** (`minSdk 30`)
+- **Android Studio** (a recent stable release) — ships its own JDK and SDK
+- **JDK 25** — the one bundled with Android Studio (`Settings → Build Tools → Gradle →
+  Gradle JDK`)
+- A device or emulator running **Android 11 or newer** (`minSdk 30`)
 
-> El JDK del sistema suele ser más viejo y Gradle lo rechaza. Si ves un error que es solo
-> una cadena de versión (`25.0.2`) sin más explicación, eso es Gradle o AGP demasiado
-> viejos para el JDK — no es un fallo de AGP.
+> The system JDK is usually older, and Gradle rejects it. If you see an error that's
+> just a bare version string (`25.0.2`) with no explanation, that's Gradle or AGP too old
+> for the JDK — not an AGP-specific bug.
 
-### Compilar
+### Build
 
 ```bash
 git clone git@github.com:jipixz/resonance.git
 cd resonance
 ```
 
-Desde Android Studio: abre la carpeta, deja que sincronice, y dale a Run.
+From Android Studio: open the folder, let it sync, hit Run.
 
-Desde la terminal (PowerShell):
+From the terminal (PowerShell):
 
 ```powershell
 $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
 .\gradlew assembleDebug
 ```
 
-El APK sale en `app/build/outputs/apk/debug/app-debug.apk`.
+The APK lands at `app/build/outputs/apk/debug/app-debug.apk`.
 
-### Instalar en un dispositivo
+### Install on a device
 
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-La primera vez pide permiso de acceso a la música; la biblioteca se construye sola desde
-MediaStore.
+The first launch asks for music access; the library builds itself from MediaStore.
 
 ---
 
-## Estructura
+## Structure
 
 ```
-core/           AppContainer (DI a mano), SettingsStore (DataStore)
-data/db/        Entidades de Room, DAO, base de datos, migraciones
-data/media/     MediaStoreScanner — lo único que toca MediaStore
-data/           MusicRepository — reconcilia la caché, expone flows
-playback/       PlaybackService (dueño del único ExoPlayer)
-                PlayerConnection (puente a la UI)
-                CrossfadeEngine (el segundo reproductor, desechable)
-ui/theme/       Esquema Material You, override AMOLED, escala tipográfica
-ui/library/     Listas, rejilla de álbumes, detalle, búsqueda, carpetas
-ui/player/      MiniPlayer, PlayerScreen, QueueSheet, extracción de color
+core/           AppContainer (hand-rolled DI), SettingsStore (DataStore)
+data/db/        Room entities, DAO, database, migrations
+data/media/     MediaStoreScanner — the only thing that touches MediaStore
+data/           MusicRepository — reconciles the cache, exposes flows
+playback/       PlaybackService (owns the only ExoPlayer)
+                PlayerConnection (bridge to the UI)
+                CrossfadeEngine (the second, throwaway player)
+ui/theme/       Material You scheme, AMOLED override, type scale
+ui/library/     Lists, album grid, detail screens, search, folders
+ui/player/      MiniPlayer, PlayerScreen, QueueSheet, color extraction
 ```
 
 ---
 
-## Trampas ya pisadas
+## Gotchas already hit
 
-- `MediaStore.Audio.ALBUM_ARTIST` solo existe desde **API 30**. Por eso `minSdk` es 30 y
-  no 29: consultarlo por debajo revienta el cursor.
-- El parser SQL de **Room**, no SQLite, es la restricción real en `@Query`. Los `UPSERT`
-  crudos se cambiaron por métodos `@Transaction`.
-- MediaStore empaqueta los discos múltiples dentro de `TRACK` como `disco * 1000 + pista`.
-  Se desempaqueta en `MediaStoreScanner` — nunca leas `TRACK` en crudo.
-- **AGP 9 trae soporte de Kotlin integrado**: aplicar `org.jetbrains.kotlin.android` es un
-  error duro, y `kotlinOptions {}` se fue con él.
-- **Coil 3** movió todos sus paquetes de `coil.*` a `coil3.*`.
-- Girar el teléfono recreaba la Activity y repetía la animación de arranque; se resuelve
-  con `configChanges` en el manifiesto, no con más estado guardado.
-
----
-
-## Pendiente
-
-- Edición de etiquetas (necesita librería de tagging + `MediaStore.createWriteRequest`)
-- Ecualizador — ojo: cualquier `AudioEffect` rompe el offload
-- El APK de debug pesa ~72 MB, casi todo `material-icons-extended`. R8 lo limpia en
-  release, pero salir de esa dependencia sería más barato.
+- `MediaStore.Audio.ALBUM_ARTIST` only exists from **API 30**. That's why `minSdk` is 30,
+  not 29: querying it below that throws on the cursor.
+- Room's own SQL parser, not SQLite, is the real constraint on `@Query`. Raw `UPSERT`s
+  were replaced with `@Transaction` methods.
+- MediaStore packs multi-disc releases into `TRACK` as `disc * 1000 + track`. Unpacked in
+  `MediaStoreScanner` — never read `TRACK` raw.
+- **AGP 9 has built-in Kotlin support**: applying `org.jetbrains.kotlin.android` is now a
+  hard error, and `kotlinOptions {}` went with it.
+- **Coil 3** moved every package from `coil.*` to `coil3.*`.
+- Rotating the phone used to recreate the Activity and replay the launch animation; fixed
+  with `configChanges` in the manifest, not more saved state.
 
 ---
 
-## Créditos
+## Not yet built
 
-- Tipografía del logotipo: [Pacifico](https://fonts.google.com/specimen/Pacifico), bajo
+- Tag editing (needs a tagging library + `MediaStore.createWriteRequest`)
+- Equalizer — heads up: any `AudioEffect` breaks offload
+- The debug APK is ~72 MB, almost all `material-icons-extended`. R8 strips it in release,
+  but dropping that dependency would be the cheaper fix.
+
+---
+
+## Credits
+
+- Logo typeface: [Pacifico](https://fonts.google.com/specimen/Pacifico), under the
   SIL Open Font License 1.1.
-- Inspiración funcional: **BlackPlayer EX**. Inspiración visual: las apps propias de
-  Google y **Solid Explorer**.
+- Functional inspiration: **BlackPlayer EX**. Visual inspiration: Google's own apps and
+  **Solid Explorer**.
