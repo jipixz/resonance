@@ -9,6 +9,7 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import android.os.Bundle
 import com.jipix.resonance.data.db.SongEntity
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 
 /** One row of the queue sheet. */
 data class QueueItem(
@@ -43,12 +45,19 @@ data class PlaybackUiState(
     val hasQueue: Boolean = false,
     /** Position in the queue. Drives the direction of the track-change animation. */
     val queueIndex: Int = 0,
+    /** Needed to size the cover carousel's pager — see [PlayerConnection.queueItemAt]. */
+    val queueCount: Int = 0,
     /** False at the first/last track with repeat off — greys out the transport
      * buttons so reaching the end of the queue reads without opening it. */
     val hasNext: Boolean = false,
     val hasPrevious: Boolean = false,
     val shuffleEnabled: Boolean = false,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
+    /** Epoch ms the sleep timer will fire at, null when none is set. A fixed
+     * target rather than a ticking countdown — the display recomputes the
+     * remaining time itself so this does not have to push through state every
+     * second for something only the sleep timer UI cares about. */
+    val sleepTimerEndAtMs: Long? = null,
 )
 
 /**
@@ -64,6 +73,8 @@ class PlayerConnection(
 
     private var controller: MediaController? = null
     private var progressJob: Job? = null
+    private var sleepTimerJob: Job? = null
+    private var sleepTimerEndAtMs: Long? = null
 
     private val _state = MutableStateFlow(PlaybackUiState())
     val state: StateFlow<PlaybackUiState> = _state.asStateFlow()
@@ -85,6 +96,9 @@ class PlayerConnection(
     fun release() {
         progressJob?.cancel()
         progressJob = null
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        sleepTimerEndAtMs = null
         controller?.release()
         controller = null
         _state.value = PlaybackUiState()
@@ -151,10 +165,12 @@ class PlayerConnection(
             positionMs = c.currentPosition.coerceAtLeast(0L),
             hasQueue = c.mediaItemCount > 0,
             queueIndex = c.currentMediaItemIndex,
+            queueCount = c.mediaItemCount,
             hasNext = c.hasNextMediaItem(),
             hasPrevious = c.hasPreviousMediaItem(),
             shuffleEnabled = c.shuffleModeEnabled,
             repeatMode = c.repeatMode,
+            sleepTimerEndAtMs = sleepTimerEndAtMs,
         )
 
         if (c.isPlaying) startProgressTicker() else stopProgressTicker()
@@ -198,6 +214,23 @@ class PlayerConnection(
         }
     }
 
+    /** One arbitrary queue slot's worth of display data — the cover carousel's
+     * neighbour pages use this rather than [snapshotQueue] so dragging through
+     * a huge queue never has to materialise the whole thing, only the couple
+     * of pages the pager actually composes. */
+    fun queueItemAt(index: Int): QueueItem? {
+        val c = controller ?: return null
+        if (index !in 0 until c.mediaItemCount) return null
+        val metadata = c.getMediaItemAt(index).mediaMetadata
+        return QueueItem(
+            index = index,
+            title = metadata.title?.toString().orEmpty(),
+            artist = metadata.artist?.toString().orEmpty(),
+            artworkUri = metadata.artworkUri?.toString(),
+            durationMs = metadata.extras?.getLong(EXTRA_DURATION) ?: 0L,
+        )
+    }
+
     fun playQueueItem(index: Int, autoPlay: Boolean) {
         val c = controller ?: return
         c.seekToDefaultPosition(index)
@@ -216,6 +249,13 @@ class PlayerConnection(
         if (from >= c.mediaItemCount) return
         val upcoming = (from until c.mediaItemCount).map { c.getMediaItemAt(it) }.shuffled()
         c.replaceMediaItems(from, c.mediaItemCount, upcoming)
+    }
+
+    /** Swiping a row away in the queue calls straight through to this. Removing
+     * the currently playing item just advances to whatever is next, same as
+     * Media3 handles any other mid-queue removal. */
+    fun removeQueueItem(index: Int) {
+        controller?.removeMediaItem(index)
     }
 
     /** Drops repeats of the same track, keeping the earliest copy and the current one. */
@@ -239,6 +279,62 @@ class PlayerConnection(
 
     fun moveQueueItem(from: Int, to: Int) {
         controller?.moveMediaItem(from, to)
+    }
+
+    // ---- sleep timer ----
+
+    /**
+     * Runs entirely in this process rather than in [PlaybackService] — no
+     * session-level IPC needed for it, since the service already stays alive
+     * as a foreground service for as long as something is playing, which is
+     * exactly as long as this needs to survive.
+     */
+    fun setSleepTimer(minutes: Int, finishTrack: Boolean) {
+        sleepTimerJob?.cancel()
+        sleepTimerEndAtMs = System.currentTimeMillis() + minutes * 60_000L
+        pushState()
+        sleepTimerJob = scope.launch {
+            delay(minutes * 60_000L)
+            if (finishTrack) awaitTrackEnd()
+            controller?.pause()
+            sleepTimerEndAtMs = null
+            pushState()
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        sleepTimerEndAtMs = null
+        pushState()
+    }
+
+    /** Suspends until the current item ends naturally — a real finish, not a
+     * skip past it — so "let the song finish" means what it says. */
+    private suspend fun awaitTrackEnd() {
+        val c = controller ?: return
+        suspendCancellableCoroutine { continuation ->
+            val listener = object : Player.Listener {
+                override fun onMediaItemTransition(
+                    mediaItem: androidx.media3.common.MediaItem?,
+                    reason: Int,
+                ) {
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                        c.removeListener(this)
+                        if (continuation.isActive) continuation.resume(Unit)
+                    }
+                }
+
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_ENDED) {
+                        c.removeListener(this)
+                        if (continuation.isActive) continuation.resume(Unit)
+                    }
+                }
+            }
+            c.addListener(listener)
+            continuation.invokeOnCancellation { c.removeListener(listener) }
+        }
     }
 
     /** The queue item after the current one, if the queue has not run out. */
