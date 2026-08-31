@@ -19,12 +19,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.border
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -251,16 +254,50 @@ private fun ResonanceRoot(
                         // theme (light chip on a dark app, dark chip on a light
                         // one) for contrast. That reads as "wrong theme" here, so
                         // it follows the app's own surface colours instead.
+                        val snackbarShape = RoundedCornerShape(16.dp)
+                        // Not the Snackbar(snackbarData = ...) convenience
+                        // overload: it adds `modifier.padding(12.dp)` internally
+                        // *after* whatever modifier is passed in, so a border on
+                        // that modifier ends up drawn 12dp outside the visible
+                        // coloured surface instead of hugging it. This lower-
+                        // level overload applies the modifier straight to the
+                        // Surface with nothing in between.
                         Snackbar(
-                            snackbarData = data,
-                            shape = RoundedCornerShape(16.dp),
-                            // A lower tonal step than Highest — darker, closer
-                            // to the base surface — since Highest read as too
-                            // light/generic against the rest of the theme.
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            modifier = Modifier.border(
+                                width = 1.dp,
+                                // AMOLED collapses every surface tier toward true
+                                // black, so a tonal container alone (what used to
+                                // be here) all but disappears against it — a
+                                // border in the app's own accent colour is what
+                                // actually stays visible regardless of theme.
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                shape = snackbarShape,
+                            ),
+                            action = data.visuals.actionLabel?.let { label ->
+                                {
+                                    TextButton(
+                                        colors = ButtonDefaults.textButtonColors(
+                                            contentColor = MaterialTheme.colorScheme.primary,
+                                        ),
+                                        onClick = { data.performAction() },
+                                    ) { Text(label) }
+                                }
+                            },
+                            dismissAction = if (data.visuals.withDismissAction) {
+                                {
+                                    IconButton(onClick = { data.dismiss() }) {
+                                        Icon(Icons.Rounded.Close, contentDescription = "Cerrar")
+                                    }
+                                }
+                            } else {
+                                null
+                            },
+                            shape = snackbarShape,
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             contentColor = MaterialTheme.colorScheme.onSurface,
-                            actionColor = MaterialTheme.colorScheme.primary,
-                        )
+                        ) {
+                            Text(data.visuals.message)
+                        }
                     }
                 },
                 topBar = {
@@ -488,6 +525,10 @@ private fun ResonanceRoot(
                     onSeek = viewModel::seekTo,
                     onToggleShuffle = viewModel::toggleShuffle,
                     onCycleRepeat = viewModel::cycleRepeat,
+                    onSetSleepTimer = viewModel::setSleepTimer,
+                    onCancelSleepTimer = viewModel::cancelSleepTimer,
+                    queueItemAt = viewModel::queueItemAt,
+                    onSeekQueueIndex = { index -> viewModel.playQueueItem(index, autoPlay = true) },
                 )
             }
 
@@ -512,6 +553,7 @@ private fun ResonanceRoot(
                         if (settings.queueClosesOnTap) showQueue = false
                     },
                     onMoveItem = viewModel::moveQueueItem,
+                    onRemoveItem = viewModel::removeQueueItem,
                     onShuffle = {
                         viewModel.shuffleQueue()
                         queue = viewModel.queueSnapshot()

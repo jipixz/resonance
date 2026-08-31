@@ -14,8 +14,8 @@ android {
         // and querying it below that throws on the cursor.
         minSdk = 30
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -29,6 +29,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Debug-signed on purpose: this lets `assembleRelease` produce an
+            // APK that installs straight over the debug build for local R8/
+            // perf testing. Swap in a real release keystore before this ever
+            // ships anywhere.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

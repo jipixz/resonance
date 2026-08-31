@@ -10,7 +10,6 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Bluetooth
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Usb
@@ -30,14 +29,17 @@ data class AudioOutput(val label: String, val icon: ImageVector)
 /**
  * Which physical route media audio is currently going out on — Bluetooth
  * (covers a car's hands-free profile too, since Android reports both the same
- * way), wired headphones, USB, or the built-in speaker. Shows the connected
- * device's own name (car, headphone model, etc.) when it can — on API 31+
- * that needs `BLUETOOTH_CONNECT`, which this asks for the first time the
- * player screen shows a Bluetooth route; falls back to the generic "Bluetooth"
- * label until/unless it is granted.
+ * way), wired headphones, or USB. Shows the connected device's own name (car,
+ * headphone model, etc.) when it can — on API 31+ that needs
+ * `BLUETOOTH_CONNECT`, which this asks for the first time the player screen
+ * shows a Bluetooth route; falls back to the generic "Bluetooth" label
+ * until/unless it is granted.
+ *
+ * Null means the built-in speaker — the default route needs no callout, so
+ * the row this feeds just doesn't render rather than stating the obvious.
  */
 @Composable
-fun rememberAudioOutput(): AudioOutput {
+fun rememberAudioOutput(): AudioOutput? {
     val context = LocalContext.current
 
     var bluetoothNameGranted by remember {
@@ -86,9 +88,9 @@ fun rememberAudioOutput(): AudioOutput {
     return output
 }
 
-private fun currentAudioOutput(context: Context, canReadBluetoothName: Boolean): AudioOutput {
+private fun currentAudioOutput(context: Context, canReadBluetoothName: Boolean): AudioOutput? {
     val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        ?: return AudioOutput("Altavoz", Icons.AutoMirrored.Rounded.VolumeUp)
+        ?: return null
     val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
 
     // Priority mirrors what the platform actually routes audio to: an active
@@ -130,7 +132,7 @@ private fun currentAudioOutput(context: Context, canReadBluetoothName: Boolean):
     }
     if (usb) return AudioOutput("USB", Icons.Rounded.Usb)
 
-    return AudioOutput("Altavoz", Icons.AutoMirrored.Rounded.VolumeUp)
+    return null
 }
 
 /** Whether this device's reported name is actually just the phone's own. */
