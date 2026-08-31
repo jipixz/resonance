@@ -1,6 +1,8 @@
 package com.jipix.resonance.ui.player
 
+import android.content.Intent
 import android.content.res.Configuration
+import android.provider.Settings
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -81,6 +83,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -728,14 +731,28 @@ private fun PlayingFromHeader(
     }
 }
 
-/** Read-only echo of Spotify's "playing on" line — see [rememberAudioOutput]. */
+/**
+ * Read-only echo of Spotify's "playing on" line — see [rememberAudioOutput].
+ * Tapping it opens the system's own volume panel, which surfaces the media
+ * output switcher (Android 12+) whenever more than one route is available —
+ * the one place actually picking a device between Bluetooth/wired/speaker
+ * lives; see the doc on [rememberAudioOutput] for why this app cannot offer
+ * that switch itself.
+ */
 @Composable
 private fun PlayingOnRow(output: AudioOutput?, palette: PlayerPalette) {
     if (output == null) return
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 6.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .clickable {
+                runCatching {
+                    context.startActivity(Intent(Settings.Panel.ACTION_VOLUME))
+                }
+            }
+            .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
