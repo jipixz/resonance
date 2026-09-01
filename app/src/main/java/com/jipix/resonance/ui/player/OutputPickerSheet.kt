@@ -1,6 +1,7 @@
 package com.jipix.resonance.ui.player
 
 import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -44,9 +45,9 @@ import com.jipix.resonance.ui.ResonanceIcons
  * audio to a headset the moment one is connected. Pinning is for the case where
  * that guess is wrong.
  *
- * The shortcut to the system panel stays at the bottom. This screen can choose
- * among outputs the player can render to; it cannot pair a device or manage one,
- * and pretending otherwise would be worse than a visible handoff.
+ * The shortcut to the system volume panel stays at the bottom. This screen can
+ * choose among outputs the player can already render to; it cannot pair a device
+ * or manage one, and pretending otherwise would be worse than a visible handoff.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -109,17 +110,19 @@ fun OutputPickerSheet(
             )
 
             OutputRow(
-                icon = ResonanceIcons.OpenInNew,
-                label = "Ajustes de sonido del sistema",
-                detail = null,
+                icon = ResonanceIcons.VolumeUp,
+                label = "Panel de volumen del sistema",
+                detail = "Para emparejar o cambiar de dispositivo",
                 selected = false,
                 palette = palette,
                 onClick = {
+                    // Settings.Panel, not ACTION_SOUND_SETTINGS. The panel floats
+                    // over whatever is in front and closes back into it; the
+                    // settings action launches the whole Settings app and leaves
+                    // the user somewhere else entirely. For a control that exists
+                    // to be a quick detour, that difference is the whole point.
                     runCatching {
-                        context.startActivity(
-                            Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        )
+                        context.startActivity(Intent(Settings.Panel.ACTION_VOLUME))
                     }
                     onDismiss()
                 },
