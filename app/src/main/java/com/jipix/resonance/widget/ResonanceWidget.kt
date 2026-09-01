@@ -3,7 +3,9 @@ package com.jipix.resonance.widget
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.appwidget.AppWidgetManager
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
@@ -77,11 +79,31 @@ import kotlinx.coroutines.withContext
  */
 class ResonanceWidget : GlanceAppWidget() {
 
-    override val sizeMode = SizeMode.Responsive(
-        setOf(NARROW, WIDE, SQUARE, TALL)
-    )
+    // Responsive pre-renders one RemoteViews per declared size and lets the
+    // system pick the closest fit — but "closest fit" for anything past the
+    // largest declared size is that layout's own fixed pixels floating inside
+    // a bigger frame, not stretched to fill it. That produced a widget that
+    // looked stuck with dead space above the content once resized past TALL.
+    // Exact recomposes at the frame's real size on every resize, so the
+    // fillMaxSize() below always means what it says. The extra recompositions
+    // only happen during an active, user-initiated drag — a bounded burst,
+    // not the kind of steady-state background cost this project avoids.
+    override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        val rawId = (id as? androidx.glance.appwidget.AppWidgetId)?.appWidgetId
+        val options = rawId?.let {
+            (context.getSystemService(Context.APPWIDGET_SERVICE) as? AppWidgetManager)
+                ?.getAppWidgetOptions(it)
+        }
+        Log.d(
+            "WidgetResizeDiag",
+            "provideGlance called, id=$id options=" +
+                "minW=${options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)} " +
+                "maxW=${options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH)} " +
+                "minH=${options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT)} " +
+                "maxH=${options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)}",
+        )
         // A widget placed while music is already playing has missed every event
         // that would have told it anything: state is only pushed on track
         // changes and play/pause, and neither happens just because a widget
@@ -118,6 +140,7 @@ class ResonanceWidget : GlanceAppWidget() {
 private fun WidgetBody() {
     val prefs = currentState<androidx.datastore.preferences.core.Preferences>()
     val size = LocalSize.current
+    Log.d("WidgetResizeDiag", "WidgetBody composed, LocalSize=$size")
 
     val title = prefs[WidgetState.TITLE].orEmpty()
     val artist = prefs[WidgetState.ARTIST].orEmpty()
