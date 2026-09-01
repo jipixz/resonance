@@ -1,14 +1,11 @@
 package com.jipix.resonance.widget
 
-import android.content.ComponentName
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
-import androidx.media3.session.SessionToken
-import com.jipix.resonance.playback.PlaybackService
 
 /**
  * What the widget knows about playback.
@@ -43,24 +40,15 @@ object WidgetState {
      * alternative is a widget that stays blank until the next track change.
      */
     suspend fun seedFromSession(context: Context) {
-        val token = SessionToken(
-            context,
-            ComponentName(context, PlaybackService::class.java),
+        val snapshot = readSessionSnapshot(context) ?: return
+        publish(
+            context = context,
+            title = snapshot.title,
+            artist = snapshot.artist,
+            artworkUri = snapshot.artworkUri,
+            isPlaying = snapshot.isPlaying,
+            hasQueue = snapshot.hasQueue,
         )
-        val controller = runCatching { awaitController(context, token) }.getOrNull() ?: return
-        try {
-            val metadata = controller.mediaMetadata
-            publish(
-                context = context,
-                title = metadata.title?.toString().orEmpty(),
-                artist = metadata.artist?.toString().orEmpty(),
-                artworkUri = metadata.artworkUri?.toString(),
-                isPlaying = controller.isPlaying,
-                hasQueue = controller.mediaItemCount > 0,
-            )
-        } finally {
-            controller.release()
-        }
     }
 
     suspend fun publish(
