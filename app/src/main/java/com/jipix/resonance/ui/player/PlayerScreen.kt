@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -567,9 +568,22 @@ private fun CoverCarousel(
             )
         }
     }
+    // Both of these are read through rememberUpdatedState rather than captured
+    // directly, and that is not defensive style — it is the fix for a real bug.
+    //
+    // This effect is keyed on `pagerState`, which never changes, so it launches
+    // exactly once and its lambda closes over whatever `state` was at that
+    // moment. Reading `state.queueIndex` inside meant comparing the settled page
+    // against the index the queue had when the player was *opened*, frozen
+    // forever after. Swiping onto that one index compared equal, the seek never
+    // fired, and the track silently refused to change — while every other index
+    // worked, which is exactly why it looked like one cursed album rather than a
+    // logic error.
+    val currentIndex by rememberUpdatedState(state.queueIndex)
+    val seekToIndex by rememberUpdatedState(onSeekQueueIndex)
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settled ->
-            if (settled != state.queueIndex) onSeekQueueIndex(settled)
+            if (settled != currentIndex) seekToIndex(settled)
         }
     }
 
