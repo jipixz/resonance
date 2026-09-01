@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.palette.graphics.Palette
+import kotlin.math.sqrt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -64,55 +65,57 @@ private fun extractAccent(context: Context, uri: Uri): Color? = runCatching {
         return@runCatching null
     }
     stream.use {
-        val options = BitmapFactory.Options().apply { inSampleSize = 8 }
+        // 1/4, not 1/8: the coarser decode blended small vivid regions into
+        // whatever surrounded them, which is exactly the detail that decides
+        // what colour a cover "is".
+        val options = BitmapFactory.Options().apply { inSampleSize = 4 }
         val bitmap = BitmapFactory.decodeStream(it, null, options)
         if (bitmap == null) {
             Log.w("ArtworkAccent", "decodeStream returned null for $uri")
             return@use null
         }
-        val palette = Palette.from(bitmap).clearFilters().maximumColorCount(16).generate()
+        val palette = Palette.from(bitmap).clearFilters().maximumColorCount(32).generate()
         bitmap.recycle()
-        // Vibrant reads as "the colour of this cover"; the rest of this list
-        // is what used to be a hard stop at dominantSwatch — a wash that is
-        // itself near-black (or otherwise swatch-less under Palette's default
-        // filters) used to mean no tint at all rather than falling further
-        // back to *some* colour from the cover.
-        val candidates = listOfNotNull(
-            palette.vibrantSwatch,
-            palette.dominantSwatch,
-            palette.lightVibrantSwatch,
-            palette.darkVibrantSwatch,
-            palette.mutedSwatch,
-            palette.lightMutedSwatch,
-            palette.darkMutedSwatch,
-        )
-        // A cover that is mostly grey (concrete, smoke, a black-and-white
-        // photo) otherwise had its dominant swatch win by sheer area even when
-        // a real, saturated colour was present elsewhere.
+
+        // Every swatch competes on merit rather than working down a fixed list
+        // of Palette's named ones. The ordered-list version put dominantSwatch
+        // second, so a cover whose largest region is a muddy blend — a dark
+        // figure over a gradient, say — handed back that blend and stopped
+        // looking, even with vivid greens and purples elsewhere in the frame.
+        // Area alone is a bad proxy for "the colour of this record".
         //
-        // Two things matter here. First, the named swatches are only seven of
-        // however many Palette actually found, so when none of them is
-        // colourful the search widens to every swatch and takes the most
-        // saturated one — weighted by population, so a colour that is merely
-        // vivid does not beat one that is vivid *and* actually present.
-        //
-        // Second, and this is the part the previous version got wrong: if
-        // nothing in the artwork has colour, this returns null rather than
-        // settling for the grey. Null means no tint, which falls back to the
-        // theme — and the theme is a far better answer than washing the whole
-        // player in the colour of dust.
-        val swatch = candidates.firstOrNull { it.hsl[1] >= MIN_SATURATION }
+        // Saturation is squared and population only rooted, so vividness
+        // dominates the score while presence still breaks ties. A brilliant
+        // colour occupying a corner should beat a large wash of nearly-grey,
+        // but a single vivid pixel should not beat a whole vivid background.
+        fun Palette.Swatch.score(): Float {
+            val saturation = hsl[1]
+            return saturation * saturation * sqrt(population.toFloat())
+        }
+
+        val swatch = palette.swatches
+            .filter { it.hsl[1] >= STRONG_SATURATION }
+            .maxByOrNull { it.score() }
             ?: palette.swatches
                 .filter { it.hsl[1] >= MIN_SATURATION }
-                .maxByOrNull { it.hsl[1] * it.population }
+                .maxByOrNull { it.score() }
 
         val rgb = swatch?.rgb
         if (rgb == null) {
             Log.d("ArtworkAccent", "No colourful swatch for $uri; leaving untinted")
             return@use null
         }
-        Log.d("ArtworkAccent", "Extracted ${Integer.toHexString(rgb)} from $uri")
-        Color(rgb)
+        // Even the best swatch on a busy cover can come back half-washed,
+        // and every downstream use darkens it further — by the time it is a
+        // background it would be indistinguishable from the theme. Lifting
+        // saturation to a floor keeps the hue the artwork actually chose while
+        // making sure it survives being darkened three times over.
+        val boosted = FloatArray(3).also { android.graphics.Color.colorToHSV(rgb, it) }
+        boosted[1] = boosted[1].coerceAtLeast(TINT_SATURATION_FLOOR)
+        val finalRgb = android.graphics.Color.HSVToColor(boosted)
+
+        Log.d("ArtworkAccent", "Extracted ${Integer.toHexString(finalRgb)} from $uri")
+        Color(finalRgb)
     }
 }.onFailure {
     Log.w("ArtworkAccent", "Failed to extract accent from $uri", it)
@@ -124,6 +127,12 @@ private fun extractAccent(context: Context, uri: Uri): Color? = runCatching {
  * being monochrome, and a strict threshold would send all of it untinted.
  */
 private const val MIN_SATURATION = 0.12f
+
+/** What counts as unambiguously a colour, tried before settling for less. */
+private const val STRONG_SATURATION = 0.35f
+
+/** Floor applied to the chosen colour so it survives being darkened. */
+private const val TINT_SATURATION_FLOOR = 0.45f
 
 /** Pulls a colour toward black by [amount], 0f leaving it untouched. */
 fun Color.darken(amount: Float): Color = androidx.compose.ui.graphics.lerp(
