@@ -235,7 +235,14 @@ fun AlbumGrid(
     val gridState = rememberLazyGridState()
     Box(modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
+            // 160dp comfortably fit two columns at default display size, but
+            // Android's own "display size" accessibility setting shrinks the
+            // screen's *effective* dp width — at the larger settings, two
+            // 160dp tiles plus spacing no longer fit and Adaptive silently
+            // drops to one column. 130dp still reads as a real album grid,
+            // not a list, while leaving enough margin for two columns to
+            // survive the display-size range Android actually offers.
+            columns = GridCells.Adaptive(minSize = 130.dp),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
