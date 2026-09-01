@@ -28,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -59,19 +61,29 @@ fun LibraryDrawer(
 ) {
     ModalDrawerSheet {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            val accent = MaterialTheme.colorScheme.primary
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // A faint wash of the accent behind the header, brightest at
-                    // the mark and falling away — the same gesture the player
-                    // makes with the cover's colour.
-                    .background(
-                        Brush.horizontalGradient(
-                            0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                            1f to Color.Transparent,
+                    // A wash of the accent centred on the mark. Radial, not
+                    // linear: a horizontal gradient still has a hard bottom edge,
+                    // and that edge landed exactly where the destinations start.
+                    // This one has no edge to land anywhere — it falls off in
+                    // every direction, dissolving down into the list.
+                    .drawBehind {
+                        drawRect(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    accent.copy(alpha = 0.18f),
+                                    accent.copy(alpha = 0.07f),
+                                    Color.Transparent,
+                                ),
+                                center = Offset(size.width * 0.16f, size.height * 0.55f),
+                                radius = size.width * 0.95f,
+                            )
                         )
-                    )
-                    .padding(start = 28.dp, top = 28.dp, bottom = 20.dp),
+                    }
+                    .padding(start = 28.dp, top = 28.dp, bottom = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(

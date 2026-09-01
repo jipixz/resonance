@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.border
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -58,12 +59,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jipix.resonance.R
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.core.Settings
 import com.jipix.resonance.data.M3uPlaylists
@@ -362,8 +365,20 @@ private fun ResonanceRoot(
                                 )
                             },
                             navigationIcon = {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(Icons.Rounded.Menu, contentDescription = "Menú")
+                                // Deliberately larger than the 48dp default. This
+                                // is the only way into the drawer now that the
+                                // edge swipe is gone, and it gets pressed with wet
+                                // hands and while driving — the cases where a
+                                // minimum-size target is exactly the wrong call.
+                                IconButton(
+                                    onClick = { scope.launch { drawerState.open() } },
+                                    modifier = Modifier.size(60.dp),
+                                ) {
+                                    Icon(
+                                        painter = painterResource(R.drawable.ic_menu_waveform),
+                                        contentDescription = "Menú",
+                                        modifier = Modifier.size(26.dp),
+                                    )
                                 }
                             },
                             actions = {

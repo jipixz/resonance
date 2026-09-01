@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The hamburger, wearing the logo's face.
+
+    The mark is five vertical bars, symmetrical about a tall centre, drawn with
+    round caps. This is the same idea turned on its side and reduced to three:
+    symmetrical, longest in the middle, same round caps. The lengths stay close
+    together (80% / 100% / 80%) on purpose — push the contrast any further and it
+    stops reading as a menu button and starts reading as a sort or filter icon,
+    which would trade recognition for personality at the one place a user cannot
+    afford to hesitate.
+
+    No tint here: Compose colours the Icon at the call site.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M5.4,7 L18.6,7"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M3.5,12 L20.5,12"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+    <path
+        android:pathData="M5.4,17 L18.6,17"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round" />
+</vector>
