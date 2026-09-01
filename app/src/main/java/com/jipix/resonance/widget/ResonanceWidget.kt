@@ -135,7 +135,12 @@ private fun WidgetBody() {
             .fillMaxSize()
             .background(GlanceTheme.colors.widgetBackground)
             .cornerRadius(24.dp)
-            .clickable(actionStartActivity<MainActivity>())
+            // Deliberately NOT clickable. RemoteViews resolves a tap to a single
+            // target and an ancestor click wins over its descendants, so a
+            // clickable root swallowed every transport button underneath it —
+            // which is exactly why the buttons appeared to do nothing while
+            // throwing no error. "Open the app" now lives on the metadata area
+            // only, as a sibling of the buttons rather than their parent.
             .padding(12.dp),
     ) {
         when {
@@ -167,18 +172,24 @@ private fun NarrowLayout(title: String, artworkUri: String?, isPlaying: Boolean)
         modifier = GlanceModifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(artworkUri, 40.dp)
-        Spacer(GlanceModifier.width(10.dp))
-        Text(
-            text = title,
-            maxLines = 2,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            modifier = GlanceModifier.defaultWeight(),
-        )
+        Row(
+            modifier = GlanceModifier
+                .defaultWeight()
+                .clickable(actionStartActivity<MainActivity>()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Artwork(artworkUri, 40.dp)
+            Spacer(GlanceModifier.width(10.dp))
+            Text(
+                text = title,
+                maxLines = 2,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+        }
         PlayPause(isPlaying)
     }
 }
@@ -189,23 +200,33 @@ private fun WideLayout(title: String, artist: String, artworkUri: String?, isPla
         modifier = GlanceModifier.fillMaxSize(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(artworkUri, 48.dp)
-        Spacer(GlanceModifier.width(12.dp))
-        Column(modifier = GlanceModifier.defaultWeight()) {
-            Text(
-                text = title,
-                maxLines = 1,
-                style = TextStyle(
-                    color = GlanceTheme.colors.onSurface,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
-                ),
-            )
-            Text(
-                text = artist,
-                maxLines = 1,
-                style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
-            )
+        Row(
+            modifier = GlanceModifier
+                .defaultWeight()
+                .clickable(actionStartActivity<MainActivity>()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Artwork(artworkUri, 48.dp)
+            Spacer(GlanceModifier.width(12.dp))
+            Column {
+                Text(
+                    text = title,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurface,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+                Text(
+                    text = artist,
+                    maxLines = 1,
+                    style = TextStyle(
+                        color = GlanceTheme.colors.onSurfaceVariant,
+                        fontSize = 12.sp,
+                    ),
+                )
+            }
         }
         TransportRow(isPlaying)
     }
@@ -223,18 +244,23 @@ private fun SquareLayout(title: String, artist: String, artworkUri: String?, isP
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(artworkUri, 64.dp)
-        Spacer(GlanceModifier.height(8.dp))
-        Text(
-            text = title,
-            maxLines = 2,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = androidx.glance.text.TextAlign.Center,
-            ),
-        )
+        Column(
+            modifier = GlanceModifier.clickable(actionStartActivity<MainActivity>()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Artwork(artworkUri, 64.dp)
+            Spacer(GlanceModifier.height(8.dp))
+            Text(
+                text = title,
+                maxLines = 2,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    textAlign = androidx.glance.text.TextAlign.Center,
+                ),
+            )
+        }
         Spacer(GlanceModifier.height(8.dp))
         TransportRow(isPlaying)
     }
@@ -247,22 +273,30 @@ private fun TallLayout(title: String, artist: String, artworkUri: String?, isPla
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Artwork(artworkUri, 96.dp)
-        Spacer(GlanceModifier.height(10.dp))
-        Text(
-            text = title,
-            maxLines = 1,
-            style = TextStyle(
-                color = GlanceTheme.colors.onSurface,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-        )
-        Text(
-            text = artist,
-            maxLines = 1,
-            style = TextStyle(color = GlanceTheme.colors.onSurfaceVariant, fontSize = 12.sp),
-        )
+        Column(
+            modifier = GlanceModifier.clickable(actionStartActivity<MainActivity>()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Artwork(artworkUri, 96.dp)
+            Spacer(GlanceModifier.height(10.dp))
+            Text(
+                text = title,
+                maxLines = 1,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurface,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                ),
+            )
+            Text(
+                text = artist,
+                maxLines = 1,
+                style = TextStyle(
+                    color = GlanceTheme.colors.onSurfaceVariant,
+                    fontSize = 12.sp,
+                ),
+            )
+        }
         Spacer(GlanceModifier.height(8.dp))
         TransportRow(isPlaying)
     }

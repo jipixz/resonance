@@ -46,7 +46,9 @@ class WidgetActionCallback : ActionCallback {
     ) {
         val action = parameters[WidgetAction.KEY] ?: return
         val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-        val controller = runCatching { awaitController(context, token) }.getOrNull() ?: return
+        val controller = runCatching { awaitController(context, token) }
+            .onFailure { android.util.Log.w("ResonanceWidget", "controller failed", it) }
+            .getOrNull() ?: return
 
         try {
             when (action) {
@@ -84,7 +86,12 @@ internal suspend fun awaitController(
     // this hop the connection throws and every widget button silently does
     // nothing — which is exactly how it failed.
     suspendCancellableCoroutine { continuation ->
-    val future = MediaController.Builder(context, token).buildAsync()
+        // applicationContext, not the context handed in. Glance delivers widget
+        // actions through a BroadcastReceiver, and a receiver's context is a
+        // ReceiverRestrictedContext that throws on bindService — which is what
+        // MediaController.Builder does internally. The application context has
+        // no such restriction, and is the same process either way.
+        val future = MediaController.Builder(context.applicationContext, token).buildAsync()
     future.addListener(
         {
             runCatching { future.get() }
