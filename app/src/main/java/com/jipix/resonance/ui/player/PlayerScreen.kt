@@ -145,6 +145,7 @@ fun PlayerScreen(
     onCancelSleepTimer: () -> Unit,
     queueItemAt: (Int) -> QueueItem?,
     onSeekQueueIndex: (Int) -> Unit,
+    onOpenOutputPicker: () -> Unit,
     /**
      * False while the queue is open over this screen. Both surfaces carry their
      * own vertical drag-to-dismiss, and with the player's still live underneath
@@ -261,6 +262,7 @@ fun PlayerScreen(
                     onSeek = onSeek,
                     onToggleShuffle = onToggleShuffle,
                     onCycleRepeat = onCycleRepeat,
+                    onOpenOutputPicker = onOpenOutputPicker,
                     modifier = Modifier.weight(1f),
                 )
             } else {
@@ -278,6 +280,7 @@ fun PlayerScreen(
                     onSeek = onSeek,
                     onToggleShuffle = onToggleShuffle,
                     onCycleRepeat = onCycleRepeat,
+                    onOpenOutputPicker = onOpenOutputPicker,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -325,6 +328,7 @@ private fun PortraitBody(
     onSeek: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    onOpenOutputPicker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
@@ -382,7 +386,7 @@ private fun PortraitBody(
         // Centred in the space between the controls and the queue chevron
         // below this whole block, rather than crowding either one.
         Spacer(Modifier.weight(1f))
-        PlayingOnRow(output = output, palette = palette)
+        PlayingOnRow(output = output, palette = palette, onClick = onOpenOutputPicker)
         Spacer(Modifier.weight(1f))
     }
 }
@@ -406,6 +410,7 @@ private fun LandscapeBody(
     onSeek: (Long) -> Unit,
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
+    onOpenOutputPicker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -459,7 +464,7 @@ private fun LandscapeBody(
                 color = palette.subdued,
             )
             Spacer(Modifier.height(12.dp))
-            PlayingOnRow(output = output, palette = palette)
+            PlayingOnRow(output = output, palette = palette, onClick = onOpenOutputPicker)
         }
     }
 }
@@ -740,26 +745,23 @@ private fun PlayingFromHeader(
 }
 
 /**
- * Read-only echo of Spotify's "playing on" line — see [rememberAudioOutput].
- * Tapping it opens the system's own volume panel, which surfaces the media
- * output switcher (Android 12+) whenever more than one route is available —
- * the one place actually picking a device between Bluetooth/wired/speaker
- * lives; see the doc on [rememberAudioOutput] for why this app cannot offer
- * that switch itself.
+ * Spotify's "playing on" line. Tapping it now opens this app's own output
+ * picker rather than handing straight off to the system panel — the picker
+ * still offers that panel as its last row, for pairing and anything else
+ * choosing among existing routes cannot do.
  */
 @Composable
-private fun PlayingOnRow(output: AudioOutput?, palette: PlayerPalette) {
+private fun PlayingOnRow(
+    output: AudioOutput?,
+    palette: PlayerPalette,
+    onClick: () -> Unit,
+) {
     if (output == null) return
-    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .clickable {
-                runCatching {
-                    context.startActivity(Intent(Settings.Panel.ACTION_VOLUME))
-                }
-            }
+            .clickable(onClick = onClick)
             .padding(vertical = 6.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

@@ -259,6 +259,15 @@ class PlayerConnection(
      * cleanly instead of letting the removal yank it out from under a playing
      * renderer, which leaves the session reporting a track it no longer has.
      */
+    /**
+     * Pins playback to one output, or hands routing back to the system with
+     * [OutputRouting.DEVICE_AUTOMATIC]. The service does the actual work; see
+     * [OutputRouting].
+     */
+    fun setPreferredOutput(deviceId: Int) {
+        controller?.sendCustomCommand(OutputRouting.command, OutputRouting.args(deviceId))
+    }
+
     fun clearQueue() {
         val c = controller ?: return
         scope.launch {

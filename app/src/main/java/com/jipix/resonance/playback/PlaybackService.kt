@@ -2,6 +2,8 @@ package com.jipix.resonance.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioManager
+import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -12,6 +14,10 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import androidx.media3.session.SessionCommand
+import androidx.media3.session.SessionResult
+import com.google.common.util.concurrent.Futures
+import com.google.common.util.concurrent.ListenableFuture
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -64,6 +70,7 @@ class PlaybackService : MediaSessionService() {
         observeSettings()
 
         session = MediaSession.Builder(this, player)
+            .setCallback(OutputRoutingCallback())
             .setSessionActivity(openAppIntent())
             .build()
     }
@@ -116,6 +123,56 @@ class PlaybackService : MediaSessionService() {
                     .build()
             )
             .build()
+    }
+
+    /**
+     * Routing lives here because `setPreferredAudioDevice` is an ExoPlayer API and
+     * this service holds the only ExoPlayer. Controllers ask by device id and the
+     * service resolves it against the live list, so a device that disappeared
+     * between the tap and the handling simply resolves to nothing.
+     */
+    private inner class OutputRoutingCallback : MediaSession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): MediaSession.ConnectionResult =
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(
+                    MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+                        .buildUpon()
+                        .add(OutputRouting.command)
+                        .build()
+                )
+                .build()
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle,
+        ): ListenableFuture<SessionResult> {
+            if (customCommand.customAction != OutputRouting.ACTION_SET_OUTPUT) {
+                return super.onCustomCommand(session, controller, customCommand, args)
+            }
+
+            val requested = args.getInt(
+                OutputRouting.EXTRA_DEVICE_ID,
+                OutputRouting.DEVICE_AUTOMATIC,
+            )
+            val audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
+            val device = if (requested == OutputRouting.DEVICE_AUTOMATIC) {
+                null
+            } else {
+                audioManager
+                    ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                    ?.firstOrNull { it.id == requested }
+            }
+
+            // null clears the preference and hands routing back to the system,
+            // which is exactly what the "Automatic" entry means.
+            player.setPreferredAudioDevice(device)
+            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session

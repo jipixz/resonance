@@ -83,6 +83,7 @@ import com.jipix.resonance.ui.library.PlaylistList
 import com.jipix.resonance.ui.library.SearchScreen
 import com.jipix.resonance.ui.library.SongList
 import com.jipix.resonance.ui.player.MiniPlayer
+import com.jipix.resonance.ui.player.OutputPickerSheet
 import com.jipix.resonance.ui.player.PlayerScreen
 import com.jipix.resonance.ui.player.QueueSheet
 import com.jipix.resonance.ui.player.rememberPlayerPalette
@@ -194,6 +195,7 @@ private fun ResonanceRoot(
     var showFolders by rememberSaveable { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
+    var showOutputPicker by rememberSaveable { mutableStateOf(false) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var savingQueue by rememberSaveable { mutableStateOf(false) }
     // Held between "pick a file" and the result coming back, since the launcher
@@ -598,7 +600,8 @@ private fun ResonanceRoot(
                     onCycleInfoLine = {
                         scope.launch { settingsStore.setInfoLine(settings.infoLine.next()) }
                     },
-                    dismissEnabled = !showQueue,
+                    dismissEnabled = !showQueue && !showOutputPicker,
+                    onOpenOutputPicker = { showOutputPicker = true },
                     onCollapse = { showPlayer = false },
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::next,
@@ -656,6 +659,14 @@ private fun ResonanceRoot(
                 )
             }
         }
+    }
+
+    if (showOutputPicker) {
+        OutputPickerSheet(
+            palette = palette,
+            onPick = viewModel::setPreferredOutput,
+            onDismiss = { showOutputPicker = false },
+        )
     }
 
     menuSong?.let { song ->
