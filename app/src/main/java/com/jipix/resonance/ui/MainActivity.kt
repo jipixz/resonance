@@ -57,6 +57,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -450,6 +451,7 @@ private fun ResonanceRoot(
                                         Text(
                                             text = entry.label,
                                             fontFamily = DisplayFont,
+                                            fontWeight = FontWeight.SemiBold,
                                             fontSize = 15.sp,
                                         )
                                     },

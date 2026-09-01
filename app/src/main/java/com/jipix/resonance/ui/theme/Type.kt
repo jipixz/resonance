@@ -4,6 +4,7 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.jipix.resonance.R
@@ -31,7 +32,29 @@ val WordmarkFont = FontFamily(Font(R.font.pacifico_regular))
  * applied to a list of two thousand songs stops being character and starts
  * being an obstacle.
  */
-val DisplayFont = FontFamily(Font(R.font.quicksand_variable, FontWeight.Medium))
+val DisplayFont = FontFamily(
+    // Quicksand ships as a single variable file, and the weight argument to
+    // Font() only tells the family *which request this entry answers* — it does
+    // not move the axis. Without variationSettings the file renders at its own
+    // default instance, which for this face is Light, and Light at 15sp on a
+    // tab label is barely there. Each entry has to state the axis value it
+    // actually wants.
+    Font(
+        R.font.quicksand_variable,
+        FontWeight.Medium,
+        variationSettings = FontVariation.Settings(FontVariation.weight(500)),
+    ),
+    Font(
+        R.font.quicksand_variable,
+        FontWeight.SemiBold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(600)),
+    ),
+    Font(
+        R.font.quicksand_variable,
+        FontWeight.Bold,
+        variationSettings = FontVariation.Settings(FontVariation.weight(700)),
+    ),
+)
 
 val ResonanceTypography = Typography(
     displaySmall = TextStyle(
