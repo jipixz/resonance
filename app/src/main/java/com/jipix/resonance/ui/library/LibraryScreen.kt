@@ -31,11 +31,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Album
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -428,11 +430,8 @@ fun PlaylistList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { onOpen(playlist) },
-                        onLongClick = { onDelete(playlist) },
-                    )
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .clickable { onOpen(playlist) }
+                    .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlaylistCover(
@@ -442,7 +441,11 @@ fun PlaylistList(
                         .size(48.dp)
                         .clip(RoundedCornerShape(8.dp)),
                 )
-                Column(modifier = Modifier.padding(start = 16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                ) {
                     Text(
                         text = playlist.name,
                         style = MaterialTheme.typography.bodyLarge,
@@ -454,6 +457,18 @@ fun PlaylistList(
                         text = "${playlist.songCount} pistas",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // Deleting used to be a long press — the same gesture as "I am
+                // not sure what this is, let me hold it and find out" — and it
+                // destroyed the list without asking. An explicit button that
+                // confirms first is the only honest way to offer this.
+                IconButton(onClick = { onDelete(playlist) }) {
+                    Icon(
+                        imageVector = Icons.Rounded.DeleteOutline,
+                        contentDescription = "Borrar lista",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -507,7 +522,7 @@ fun PlaylistCover(
             )
 
             else -> Icon(
-                imageVector = Icons.Rounded.QueueMusic,
+                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )

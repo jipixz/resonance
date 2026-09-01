@@ -40,7 +40,7 @@ import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.MyLocation
-import androidx.compose.material.icons.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -725,7 +725,7 @@ private fun QueueMenu(
         )
         DropdownMenuItem(
             text = { Text("Guardar como lista") },
-            leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, contentDescription = null) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.PlaylistAdd, contentDescription = null) },
             onClick = onSaveAsPlaylist,
         )
 

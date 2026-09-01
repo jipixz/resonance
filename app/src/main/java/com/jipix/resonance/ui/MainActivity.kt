@@ -203,10 +203,6 @@ private fun ResonanceRoot(
     var showOutputPicker by rememberSaveable { mutableStateOf(false) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var savingQueue by rememberSaveable { mutableStateOf(false) }
-    // Held between "pick a file" and the result coming back, since the launcher
-    // hands back only a Uri and neither name nor payload travel with it.
-    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
     var exportingPlaylist by remember { mutableStateOf<DetailTarget.Playlist?>(null) }
     var menuSong by remember { mutableStateOf<SongEntity?>(null) }
     // Snapshotted when the sheet opens rather than tracked continuously; see
@@ -224,13 +220,6 @@ private fun ResonanceRoot(
     // grants access to exactly that, which is both the modern API and less to
     // ask for than blanket file access.
     val resolver = context.contentResolver
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> pendingImportUri = uri }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
-    ) { uri -> pendingExport = uri?.toString() }
     val snackbarHostState = remember { SnackbarHostState() }
     // Measured rather than assumed: the bar's height depends on whether it is
     // showing at all, and it carries its own navigation-bar padding inside.
@@ -241,6 +230,61 @@ private fun ResonanceRoot(
         scope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+
+    // The work runs straight off the launcher callback rather than through a
+    // LaunchedEffect keyed on a "pending uri" state. That earlier shape cleared
+    // its own key on its second line, which cancelled the effect mid-read: the
+    // file was never actually parsed and the import silently did nothing.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val content = withContext(Dispatchers.IO) {
+                runCatching {
+                    resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull()
+            }
+            if (content == null) {
+                confirm("No se pudo leer el archivo")
+                return@launch
+            }
+            val name = uri.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+                ?.takeIf { it.isNotBlank() }
+                ?: "Lista importada"
+            viewModel.importPlaylist(name, content) { added, missing ->
+                confirm(
+                    when {
+                        added == 0 -> "Ninguna pista del archivo está en tu biblioteca"
+                        missing > 0 -> "Importadas $added · $missing sin encontrar"
+                        else -> "Importadas $added pistas"
+                    }
+                )
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        val playlist = exportingPlaylist
+        exportingPlaylist = null
+        if (uri == null || playlist == null) return@rememberLauncherForActivityResult
+        viewModel.exportPlaylist(playlist.playlistId) { text ->
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            out.write(text.toByteArray())
+                        }
+                    }.isSuccess
+                }
+                confirm(if (ok) "Lista exportada" else "No se pudo escribir el archivo")
+            }
         }
     }
 
@@ -703,6 +747,9 @@ private fun ResonanceRoot(
                         viewModel.clearQueue()
                         queue = emptyList()
                         showQueue = false
+                        // Nothing is playing and nothing is queued, so the player
+                        // would be sitting there showing a track it no longer has.
+                        showPlayer = false
                         confirm("Cola vaciada")
                     },
                     onSaveAsPlaylist = { savingQueue = true },
@@ -739,57 +786,6 @@ private fun ResonanceRoot(
             },
             onDismiss = { menuSong = null },
         )
-    }
-
-    // Reading and writing happen off the launcher callback: the callback fires
-    // on the main thread, and both sides of this touch the file system.
-    LaunchedEffect(pendingImportUri) {
-        val uri = pendingImportUri ?: return@LaunchedEffect
-        pendingImportUri = null
-        val content = withContext(Dispatchers.IO) {
-            runCatching {
-                resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            }.getOrNull()
-        }
-        if (content == null) {
-            confirm("No se pudo leer el archivo")
-            return@LaunchedEffect
-        }
-        val name = uri.lastPathSegment
-            ?.substringAfterLast('/')
-            ?.substringBeforeLast('.')
-            ?.takeIf { it.isNotBlank() }
-            ?: "Lista importada"
-        viewModel.importPlaylist(name, content) { added, missing ->
-            confirm(
-                when {
-                    added == 0 -> "Ninguna pista del archivo está en tu biblioteca"
-                    missing > 0 -> "Importadas $added · $missing sin encontrar"
-                    else -> "Importadas $added pistas"
-                }
-            )
-        }
-    }
-
-    LaunchedEffect(pendingExport) {
-        val target = pendingExport ?: return@LaunchedEffect
-        val playlist = exportingPlaylist
-        pendingExport = null
-        exportingPlaylist = null
-        if (playlist == null) return@LaunchedEffect
-
-        viewModel.exportPlaylist(playlist.playlistId) { text ->
-            scope.launch {
-                val ok = withContext(Dispatchers.IO) {
-                    runCatching {
-                        resolver.openOutputStream(Uri.parse(target))?.use { out ->
-                            out.write(text.toByteArray())
-                        }
-                    }.isSuccess
-                }
-                confirm(if (ok) "Lista exportada" else "No se pudo escribir el archivo")
-            }
-        }
     }
 
     if (savingQueue) {

@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.RepeatOne
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -756,7 +757,10 @@ private fun PlayingOnRow(
     palette: PlayerPalette,
     onClick: () -> Unit,
 ) {
-    if (output == null) return
+    // Rendered even with nothing plugged in. This row is the only way into the
+    // output picker, and hiding it on the built-in speaker made the picker
+    // unreachable in exactly the situation where someone might want to send the
+    // audio somewhere else.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -767,13 +771,13 @@ private fun PlayingOnRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = output.icon,
+            imageVector = output?.icon ?: Icons.Rounded.Speaker,
             contentDescription = null,
             tint = palette.subdued,
             modifier = Modifier.size(14.dp),
         )
         Text(
-            text = output.label,
+            text = output?.label ?: "Altavoz del teléfono",
             style = MaterialTheme.typography.labelSmall,
             color = palette.subdued,
             maxLines = 1,

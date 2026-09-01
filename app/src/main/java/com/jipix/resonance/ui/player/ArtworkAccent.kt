@@ -86,15 +86,29 @@ private fun extractAccent(context: Context, uri: Uri): Color? = runCatching {
             palette.lightMutedSwatch,
             palette.darkMutedSwatch,
         )
-        // A cover that's mostly grey (concrete, smoke, a black-and-white
-        // photo) otherwise had its dominant swatch win by sheer area even
-        // when a real, saturated colour was also present elsewhere in the
-        // list — prefer the first swatch that actually reads as a colour,
-        // and only fall back to a grey one if that's truly all there is.
-        val swatch = candidates.firstOrNull { it.hsl[1] >= 0.15f } ?: candidates.firstOrNull()
+        // A cover that is mostly grey (concrete, smoke, a black-and-white
+        // photo) otherwise had its dominant swatch win by sheer area even when
+        // a real, saturated colour was present elsewhere.
+        //
+        // Two things matter here. First, the named swatches are only seven of
+        // however many Palette actually found, so when none of them is
+        // colourful the search widens to every swatch and takes the most
+        // saturated one — weighted by population, so a colour that is merely
+        // vivid does not beat one that is vivid *and* actually present.
+        //
+        // Second, and this is the part the previous version got wrong: if
+        // nothing in the artwork has colour, this returns null rather than
+        // settling for the grey. Null means no tint, which falls back to the
+        // theme — and the theme is a far better answer than washing the whole
+        // player in the colour of dust.
+        val swatch = candidates.firstOrNull { it.hsl[1] >= MIN_SATURATION }
+            ?: palette.swatches
+                .filter { it.hsl[1] >= MIN_SATURATION }
+                .maxByOrNull { it.hsl[1] * it.population }
+
         val rgb = swatch?.rgb
         if (rgb == null) {
-            Log.w("ArtworkAccent", "No swatch of any kind for $uri (${palette.swatches.size} swatches)")
+            Log.d("ArtworkAccent", "No colourful swatch for $uri; leaving untinted")
             return@use null
         }
         Log.d("ArtworkAccent", "Extracted ${Integer.toHexString(rgb)} from $uri")
@@ -103,6 +117,13 @@ private fun extractAccent(context: Context, uri: Uri): Color? = runCatching {
 }.onFailure {
     Log.w("ArtworkAccent", "Failed to extract accent from $uri", it)
 }.getOrNull()
+
+/**
+ * How saturated a swatch has to be before it counts as a colour rather than a
+ * shade of grey. Deliberately low: a lot of real album art is muted without
+ * being monochrome, and a strict threshold would send all of it untinted.
+ */
+private const val MIN_SATURATION = 0.12f
 
 /** Pulls a colour toward black by [amount], 0f leaving it untouched. */
 fun Color.darken(amount: Float): Color = androidx.compose.ui.graphics.lerp(
