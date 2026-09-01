@@ -178,6 +178,8 @@ class LibraryViewModel(
 
     fun removeQueueDuplicates() = player.removeDuplicates()
 
+    fun clearQueue() = player.clearQueue()
+
     fun saveQueueAsPlaylist(name: String) {
         val ids = player.queueSongIds()
         if (ids.isNotEmpty()) createPlaylist(name, ids)

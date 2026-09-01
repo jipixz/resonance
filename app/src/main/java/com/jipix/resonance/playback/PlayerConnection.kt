@@ -254,6 +254,17 @@ class PlayerConnection(
     /** Swiping a row away in the queue calls straight through to this. Removing
      * the currently playing item just advances to whatever is next, same as
      * Media3 handles any other mid-queue removal. */
+    /**
+     * Empties the queue outright. Stopping first releases the current item
+     * cleanly instead of letting the removal yank it out from under a playing
+     * renderer, which leaves the session reporting a track it no longer has.
+     */
+    fun clearQueue() {
+        val c = controller ?: return
+        c.stop()
+        c.clearMediaItems()
+    }
+
     fun removeQueueItem(index: Int) {
         controller?.removeMediaItem(index)
     }

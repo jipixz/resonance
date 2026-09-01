@@ -586,6 +586,12 @@ private fun ResonanceRoot(
                         viewModel.removeQueueDuplicates()
                         queue = viewModel.queueSnapshot()
                     },
+                    onClearQueue = {
+                        viewModel.clearQueue()
+                        queue = emptyList()
+                        showQueue = false
+                        confirm("Cola vaciada")
+                    },
                     onSaveAsPlaylist = { savingQueue = true },
                     onSetTapPlays = { scope.launch { settingsStore.setQueueTapPlays(it) } },
                     onSetCloseOnTap = { scope.launch { settingsStore.setQueueClosesOnTap(it) } },

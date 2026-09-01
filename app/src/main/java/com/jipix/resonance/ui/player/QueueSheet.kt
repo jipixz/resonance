@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.MoreVert
@@ -153,6 +154,7 @@ fun QueueSheet(
     onRemoveItem: (Int) -> Unit,
     onShuffle: () -> Unit,
     onRemoveDuplicates: () -> Unit,
+    onClearQueue: () -> Unit,
     onSaveAsPlaylist: () -> Unit,
     onSetTapPlays: (Boolean) -> Unit,
     onSetCloseOnTap: (Boolean) -> Unit,
@@ -364,6 +366,10 @@ fun QueueSheet(
                             menuOpen = false
                             onRemoveDuplicates()
                         },
+                        onClearQueue = {
+                            menuOpen = false
+                            onClearQueue()
+                        },
                         onSaveAsPlaylist = {
                             menuOpen = false
                             onSaveAsPlaylist()
@@ -388,6 +394,23 @@ fun QueueSheet(
                 itemsIndexed(items, key = { _, item -> item.index }) { position, item ->
                     val dragging = draggingIndex == position
                     QueueRow(
+                        // Removal used to be a hard cut: the row vanished and
+                        // everything under it jumped up a slot. Placement is
+                        // animated instead — but only while nothing is being
+                        // dragged, since a reorder is already tracking the finger
+                        // 1:1 and a second animation on top of that fights it.
+                        modifier = Modifier.animateItem(
+                            fadeInSpec = tween(durationMillis = 200),
+                            fadeOutSpec = tween(durationMillis = 160),
+                            placementSpec = if (draggingIndex != null) {
+                                null
+                            } else {
+                                spring(
+                                    stiffness = Spring.StiffnessMediumLow,
+                                    visibilityThreshold = IntOffset(1, 1),
+                                )
+                            },
+                        ),
                         item = item,
                         playing = position == currentIndex,
                         isPlaying = isPlaying,
@@ -450,6 +473,7 @@ fun QueueSheet(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QueueRow(
+    modifier: Modifier = Modifier,
     item: QueueItem,
     playing: Boolean,
     isPlaying: Boolean,
@@ -477,6 +501,7 @@ private fun QueueRow(
         }
     }
     SwipeToDismissBox(
+        modifier = modifier,
         state = dismissState,
         backgroundContent = {
             Box(
@@ -648,6 +673,7 @@ private fun QueueMenu(
     onGoToCurrent: () -> Unit,
     onShuffle: () -> Unit,
     onRemoveDuplicates: () -> Unit,
+    onClearQueue: () -> Unit,
     onSaveAsPlaylist: () -> Unit,
     onSetTapPlays: (Boolean) -> Unit,
     onSetCloseOnTap: (Boolean) -> Unit,
@@ -667,6 +693,11 @@ private fun QueueMenu(
             text = { Text("Quitar duplicados") },
             leadingIcon = { Icon(Icons.Rounded.ContentCopy, contentDescription = null) },
             onClick = onRemoveDuplicates,
+        )
+        DropdownMenuItem(
+            text = { Text("Vaciar la cola") },
+            leadingIcon = { Icon(Icons.Rounded.DeleteSweep, contentDescription = null) },
+            onClick = onClearQueue,
         )
         DropdownMenuItem(
             text = { Text("Guardar como lista") },
