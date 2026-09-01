@@ -74,6 +74,20 @@ data class PlaybackStatEntity(
     val lastPlayedAtMs: Long = 0,
 )
 
+/**
+ * A measured loudness, kept in its own table rather than as a column on
+ * [SongEntity]. Song rows are rewritten whenever a rescan sees a changed file,
+ * and a measurement is expensive enough that it should outlive that — the audio
+ * has not changed just because its modification time did.
+ */
+@Entity(tableName = "track_loudness")
+data class TrackLoudnessEntity(
+    @PrimaryKey val songId: Long,
+    /** Integrated level, LUFS-like. See LoudnessAnalyzer for what that means. */
+    val lufs: Double,
+    val analysedAtMs: Long,
+)
+
 /** Projection for the album grid; derived from [SongEntity], not stored. */
 data class AlbumSummary(
     val albumId: Long,

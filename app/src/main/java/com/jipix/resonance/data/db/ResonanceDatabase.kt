@@ -13,8 +13,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistEntity::class,
         PlaylistSongEntity::class,
         PlaybackStatEntity::class,
+        TrackLoudnessEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class ResonanceDatabase : RoomDatabase() {
@@ -27,7 +28,7 @@ abstract class ResonanceDatabase : RoomDatabase() {
                 context.applicationContext,
                 ResonanceDatabase::class.java,
                 "resonance.db",
-            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
 
         /**
@@ -43,6 +44,21 @@ abstract class ResonanceDatabase : RoomDatabase() {
                 db.execSQL("ALTER TABLE songs ADD COLUMN bitrate INTEGER NOT NULL DEFAULT 0")
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_songs_folder ON songs(folder)")
                 db.execSQL("DELETE FROM songs")
+            }
+        }
+
+        /** Measured loudness, kept apart from songs so a rescan cannot wipe it. */
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS track_loudness (
+                        songId INTEGER NOT NULL PRIMARY KEY,
+                        lufs REAL NOT NULL,
+                        analysedAtMs INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
             }
         }
 

@@ -156,6 +156,20 @@ interface MusicDao {
         )
     }
 
+    // ---- loudness ----
+
+    @Query("SELECT lufs FROM track_loudness WHERE songId = :songId")
+    suspend fun loudnessOf(songId: Long): Double?
+
+    @Upsert
+    suspend fun upsertLoudness(entry: TrackLoudnessEntity)
+
+    @Query("SELECT COUNT(*) FROM track_loudness")
+    fun observeAnalysedCount(): Flow<Int>
+
+    @Query("DELETE FROM track_loudness")
+    suspend fun clearLoudness()
+
     // ---- playlists ----
 
     @Query("SELECT * FROM playlists ORDER BY updatedAtMs DESC")

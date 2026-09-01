@@ -11,6 +11,7 @@ import com.jipix.resonance.data.db.MusicDao
 import com.jipix.resonance.data.db.PlaylistEntity
 
 import com.jipix.resonance.data.db.SongEntity
+import com.jipix.resonance.data.db.TrackLoudnessEntity
 
 import com.jipix.resonance.core.SettingsStore
 
@@ -103,6 +104,17 @@ class MusicRepository(
      * playlists, where a hidden folder should still match.
      */
     suspend fun allSongsOnce(): List<SongEntity> = dao.getAllSongsOnce()
+
+    // ---- loudness ----
+
+    suspend fun loudnessOf(songId: Long): Double? = dao.loudnessOf(songId)
+
+    suspend fun storeLoudness(songId: Long, lufs: Double) =
+        dao.upsertLoudness(TrackLoudnessEntity(songId, lufs, System.currentTimeMillis()))
+
+    val analysedCount: Flow<Int> = dao.observeAnalysedCount()
+
+    suspend fun clearLoudness() = dao.clearLoudness()
 
 
 

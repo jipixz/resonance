@@ -276,6 +276,7 @@ private fun ResonanceRoot(
                 onSetAmoled = { scope.launch { settingsStore.setAmoled(it) } },
                 onSetArtworkTint = { scope.launch { settingsStore.setArtworkTint(it) } },
                 onSetCrossfade = { scope.launch { settingsStore.setCrossfade(it) } },
+                onSetNormalize = { scope.launch { settingsStore.setNormalizeVolume(it) } },
                 onSetCrossfadeSeconds = {
                     scope.launch { settingsStore.setCrossfadeSeconds(it) }
                 },

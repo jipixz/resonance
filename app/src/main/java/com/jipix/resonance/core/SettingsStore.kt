@@ -35,6 +35,12 @@ data class Settings(
     val queueTapPlays: Boolean = true,
     /** Whether picking from the queue closes the sheet. */
     val queueClosesOnTap: Boolean = false,
+    /**
+     * Level tracks against each other on playback. Off by default: the first
+     * play of any track is still unmeasured, and measuring costs a background
+     * decode.
+     */
+    val normalizeVolume: Boolean = false,
     /** Absolute folder paths the library ignores. */
     val excludedFolders: Set<String> = emptySet(),
 )
@@ -65,6 +71,8 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setArtworkTint(enabled: Boolean) = put(Keys.ARTWORK_TINT, enabled)
 
+    suspend fun setNormalizeVolume(enabled: Boolean) = put(Keys.NORMALIZE, enabled)
+
     suspend fun setQueueTapPlays(enabled: Boolean) = put(Keys.QUEUE_TAP_PLAYS, enabled)
 
     suspend fun setQueueClosesOnTap(enabled: Boolean) = put(Keys.QUEUE_CLOSES, enabled)
@@ -91,6 +99,7 @@ class SettingsStore(private val context: Context) {
         crossfade = this[Keys.CROSSFADE] ?: false,
         crossfadeSeconds = this[Keys.CROSSFADE_SECONDS] ?: 6,
         artworkTint = this[Keys.ARTWORK_TINT] ?: false,
+        normalizeVolume = this[Keys.NORMALIZE] ?: false,
         queueTapPlays = this[Keys.QUEUE_TAP_PLAYS] ?: true,
         queueClosesOnTap = this[Keys.QUEUE_CLOSES] ?: false,
         infoLine = this[Keys.INFO_LINE]
@@ -105,6 +114,7 @@ class SettingsStore(private val context: Context) {
         val CROSSFADE = booleanPreferencesKey("crossfade")
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val ARTWORK_TINT = booleanPreferencesKey("artwork_tint")
+        val NORMALIZE = booleanPreferencesKey("normalize_volume")
         val QUEUE_TAP_PLAYS = booleanPreferencesKey("queue_tap_plays")
         val QUEUE_CLOSES = booleanPreferencesKey("queue_closes_on_tap")
         val INFO_LINE = stringPreferencesKey("info_line")

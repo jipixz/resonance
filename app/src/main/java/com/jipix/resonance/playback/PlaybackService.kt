@@ -19,6 +19,7 @@ import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.jipix.resonance.ResonanceApp
+import com.jipix.resonance.data.media.MediaStoreScanner
 import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -83,6 +84,8 @@ class PlaybackService : MediaSessionService() {
     private fun observeSettings() {
         scope.launch {
             (application as ResonanceApp).container.settingsStore.settings.collect { settings ->
+                normalizeVolume = settings.normalizeVolume
+                applyGainForCurrentItem()
                 crossfade.enabled = settings.crossfade
                 crossfade.fadeMs = settings.crossfadeSeconds * 1000L
                 if (settings.crossfade) disableAudioOffload() else enableAudioOffload()
@@ -234,6 +237,7 @@ class PlaybackService : MediaSessionService() {
                 }
             }
             lastItemId = mediaItem?.songId()
+            applyGainForCurrentItem()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -244,5 +248,57 @@ class PlaybackService : MediaSessionService() {
     }
 
     private var lastItemId: Long? = null
+    private var normalizeVolume: Boolean = false
+    /** Guards against queueing a second analysis for a track already in flight. */
+    private val analysing = java.util.Collections.synchronizedSet(HashSet<Long>())
+
+    /**
+     * Levels the current track against [LoudnessAnalyzer.TARGET_LUFS].
+     *
+     * Applied through `Player.volume`, which the renderer scales at the
+     * AudioTrack — not an AudioProcessor, so offload survives. That is the whole
+     * reason this is a per-track gain rather than a compressor: a compressor
+     * would need to see the samples.
+     *
+     * A track with no measurement yet plays at full scale and is queued for
+     * analysis, so it is levelled from its second play onward. Measuring during
+     * the first play is not possible without putting a processor in the audio
+     * path, which is the trade this refuses.
+     */
+    private fun applyGainForCurrentItem() {
+        val songId = player.currentMediaItem?.songId()
+        if (!normalizeVolume || songId == null) {
+            player.volume = 1f
+            return
+        }
+
+        scope.launch {
+            val repo = (application as ResonanceApp).container.musicRepository
+            val known = repo.loudnessOf(songId)
+            if (known != null) {
+                player.volume = LoudnessAnalyzer.gainFor(known)
+                return@launch
+            }
+
+            player.volume = 1f
+            if (!analysing.add(songId)) return@launch
+            try {
+                val measured = LoudnessAnalyzer.analyse(
+                    this@PlaybackService,
+                    MediaStoreScanner.songUri(songId),
+                )
+                if (measured != null && measured.isFinite()) {
+                    repo.storeLoudness(songId, measured)
+                    // Only if it is still the track playing: the analysis
+                    // outlives short tracks and skips.
+                    if (player.currentMediaItem?.songId() == songId) {
+                        player.volume = LoudnessAnalyzer.gainFor(measured)
+                    }
+                }
+            } finally {
+                analysing.remove(songId)
+            }
+        }
+    }
     private var crossfadeAdvancing = false
 }
