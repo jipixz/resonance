@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jipix.resonance.data.db.SongEntity
 
@@ -66,6 +67,8 @@ fun DetailScreen(
     onRemoveFromPlaylist: ((Long) -> Unit)?,
     onSongMenu: (SongEntity) -> Unit,
     onPickCover: ((Long) -> Unit)? = null,
+    /** Space the persistent mini player occupies at the bottom. */
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     var pickingCover by remember { mutableStateOf(false) }
@@ -99,7 +102,7 @@ fun DetailScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = padding,
+            contentPadding = padding.plusBottom(bottomInset),
         ) {
             item(key = "header") {
                 DetailHeader(target = target, songs = songs, onPlay = onPlay, onShuffle = onShuffle)

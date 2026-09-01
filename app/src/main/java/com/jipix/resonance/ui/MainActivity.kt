@@ -55,7 +55,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -195,6 +197,10 @@ private fun ResonanceRoot(
 
     val palette = rememberPlayerPalette(playback.artworkUri, settings.artworkTint)
     val snackbarHostState = remember { SnackbarHostState() }
+    // Measured rather than assumed: the bar's height depends on whether it is
+    // showing at all, and it carries its own navigation-bar padding inside.
+    val density = LocalDensity.current
+    var miniPlayerHeight by remember { mutableStateOf(0.dp) }
 
     fun confirm(message: String) {
         scope.launch {
@@ -245,10 +251,10 @@ private fun ResonanceRoot(
                 snackbarHost = {
                     SnackbarHost(
                         hostState = snackbarHostState,
-                        // Scaffold already lifts this clear of bottomBar's own
-                        // height; a fixed offset on top of that (what used to be
-                        // here) double-counts it and floats the snackbar too high.
-                        modifier = Modifier.padding(bottom = 2.dp),
+                        // The mini player is no longer a bottomBar, so Scaffold
+                        // cannot lift this clear of it any more — that offset is
+                        // now applied explicitly from the measured height.
+                        modifier = Modifier.padding(bottom = miniPlayerHeight + 2.dp),
                     ) { data ->
                         // The M3 default snackbar deliberately inverts against the
                         // theme (light chip on a dark app, dark chip on a light
@@ -338,15 +344,6 @@ private fun ResonanceRoot(
                         }
                     }
                 },
-                bottomBar = {
-                    MiniPlayer(
-                        state = playback,
-                        artworkTint = settings.artworkTint,
-                        onPlayPause = viewModel::togglePlayPause,
-                        onNext = viewModel::next,
-                        onExpand = { showPlayer = true },
-                    )
-                },
             ) { scaffoldPadding ->
                 if (!granted) {
                     PermissionGate(
@@ -365,7 +362,10 @@ private fun ResonanceRoot(
                         .padding(top = scaffoldPadding.calculateTopPadding()),
                 ) { page ->
                     val listPadding = PaddingValues(
-                        bottom = scaffoldPadding.calculateBottomPadding(),
+                        bottom = maxOf(
+                            miniPlayerHeight,
+                            scaffoldPadding.calculateBottomPadding(),
+                        ),
                     )
                     when (LibraryTab.entries[page]) {
                         LibraryTab.Songs -> {
@@ -402,7 +402,10 @@ private fun ResonanceRoot(
                                         start = 16.dp,
                                         end = 16.dp,
                                         top = 8.dp,
-                                        bottom = scaffoldPadding.calculateBottomPadding() + 8.dp,
+                                        bottom = maxOf(
+                                            miniPlayerHeight,
+                                            scaffoldPadding.calculateBottomPadding(),
+                                        ) + 8.dp,
                                     ),
                                 )
                             }
@@ -458,6 +461,7 @@ private fun ResonanceRoot(
                             null
                         },
                         onSongMenu = { menuSong = it },
+                        bottomInset = miniPlayerHeight,
                         onPickCover = if (detailTarget is DetailTarget.Playlist) {
                             { albumId ->
                                 viewModel.setPlaylistCover(detailTarget.playlistId, albumId)
@@ -483,6 +487,7 @@ private fun ResonanceRoot(
                     onBack = { showSearch = false },
                     onPlay = { index -> viewModel.playFrom(results, index) },
                     onSongMenu = { menuSong = it },
+                    bottomInset = miniPlayerHeight,
                 )
             }
 
@@ -499,8 +504,27 @@ private fun ResonanceRoot(
                         scope.launch { settingsStore.setFolderExcluded(folder, excluded) }
                     },
                     onBack = { showFolders = false },
+                    bottomInset = miniPlayerHeight,
                 )
             }
+
+            // Sits in the root Box rather than in the Scaffold, so it survives
+            // navigation into Search, Folders and Detail. Declared after them and
+            // before the full-screen player/queue, which is exactly its z-order:
+            // over every browsing surface, under anything that takes the screen.
+            MiniPlayer(
+                state = playback,
+                artworkTint = settings.artworkTint,
+                onPlayPause = viewModel::togglePlayPause,
+                onNext = viewModel::next,
+                onExpand = { showPlayer = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .onSizeChanged { size ->
+                        val measured = with(density) { size.height.toDp() }
+                        if (measured != miniPlayerHeight) miniPlayerHeight = measured
+                    },
+            )
 
             AnimatedVisibility(
                 visible = showPlayer,

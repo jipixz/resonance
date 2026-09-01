@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jipix.resonance.data.db.FolderSummary
 
@@ -36,6 +37,8 @@ fun FoldersScreen(
     excluded: Set<String>,
     onSetExcluded: (String, Boolean) -> Unit,
     onBack: () -> Unit,
+    /** Space the persistent mini player occupies at the bottom. */
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -56,7 +59,7 @@ fun FoldersScreen(
     ) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = padding,
+            contentPadding = padding.plusBottom(bottomInset),
         ) {
             items(folders, key = { it.folder }) { entry ->
                 val included = entry.folder !in excluded

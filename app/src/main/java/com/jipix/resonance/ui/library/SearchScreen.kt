@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jipix.resonance.data.db.SongEntity
 
@@ -44,6 +46,8 @@ fun SearchScreen(
     onBack: () -> Unit,
     onPlay: (Int) -> Unit,
     onSongMenu: (SongEntity) -> Unit,
+    /** Space the persistent mini player occupies at the bottom. */
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -88,7 +92,10 @@ fun SearchScreen(
             when {
                 query.isBlank() -> SearchHint("Escribe para buscar en tu biblioteca.")
                 results.isEmpty() -> SearchHint("Nada coincide con \"$query\".")
-                else -> LazyColumn(modifier = Modifier.fillMaxSize()) {
+                else -> LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = bottomInset),
+                ) {
                     itemsIndexed(results, key = { _, song -> song.id }) { index, song ->
                         SongRow(
                             song = song,
