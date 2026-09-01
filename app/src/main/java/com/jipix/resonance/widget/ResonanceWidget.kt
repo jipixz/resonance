@@ -78,7 +78,7 @@ import kotlinx.coroutines.withContext
 class ResonanceWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Responsive(
-        setOf(NARROW, WIDE, TALL)
+        setOf(NARROW, WIDE, SQUARE, TALL)
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -103,8 +103,13 @@ class ResonanceWidget : GlanceAppWidget() {
     }
 
     companion object {
+        // Four buckets, not three. A 2x2 placement is ~190dp wide and ~180dp
+        // tall: too narrow for WIDE, so it used to fall to NARROW and draw a
+        // single short row centred in a tall box, with dead space above and
+        // below. SQUARE is the shape that placement actually is.
         val NARROW = DpSize(140.dp, 60.dp)
         val WIDE = DpSize(250.dp, 60.dp)
+        val SQUARE = DpSize(140.dp, 140.dp)
         val TALL = DpSize(250.dp, 180.dp)
     }
 }
@@ -120,7 +125,9 @@ private fun WidgetBody() {
     val isPlaying = prefs[WidgetState.IS_PLAYING] ?: false
     val hasQueue = prefs[WidgetState.HAS_QUEUE] ?: false
 
-    val tall = size.height >= ResonanceWidget.TALL.height
+    // Height decides row versus column; width decides how much detail the
+    // column or row can carry.
+    val stacked = size.height >= ResonanceWidget.SQUARE.height
     val wide = size.width >= ResonanceWidget.WIDE.width
 
     Box(
@@ -133,7 +140,8 @@ private fun WidgetBody() {
     ) {
         when {
             !hasQueue -> EmptyState()
-            tall -> TallLayout(title, artist, artworkUri, isPlaying)
+            stacked && wide -> TallLayout(title, artist, artworkUri, isPlaying)
+            stacked -> SquareLayout(title, artist, artworkUri, isPlaying)
             wide -> WideLayout(title, artist, artworkUri, isPlaying)
             else -> NarrowLayout(title, artworkUri, isPlaying)
         }
@@ -203,11 +211,41 @@ private fun WideLayout(title: String, artist: String, artworkUri: String?, isPla
     }
 }
 
+/**
+ * The 2x2 shape. Art takes the space a square placement actually has, with the
+ * title and a single control under it — at this width a full transport row
+ * would leave three cramped targets instead of one comfortable one.
+ */
+@Composable
+private fun SquareLayout(title: String, artist: String, artworkUri: String?, isPlaying: Boolean) {
+    Column(
+        modifier = GlanceModifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Artwork(artworkUri, 64.dp)
+        Spacer(GlanceModifier.height(8.dp))
+        Text(
+            text = title,
+            maxLines = 2,
+            style = TextStyle(
+                color = GlanceTheme.colors.onSurface,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = androidx.glance.text.TextAlign.Center,
+            ),
+        )
+        Spacer(GlanceModifier.height(8.dp))
+        TransportRow(isPlaying)
+    }
+}
+
 @Composable
 private fun TallLayout(title: String, artist: String, artworkUri: String?, isPlaying: Boolean) {
     Column(
         modifier = GlanceModifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Artwork(artworkUri, 96.dp)
         Spacer(GlanceModifier.height(10.dp))

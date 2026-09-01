@@ -11,6 +11,9 @@ import androidx.glance.appwidget.action.ActionCallback
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.jipix.resonance.playback.PlaybackService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 /** The transport commands a widget button can send. */
 object WidgetAction {
@@ -75,7 +78,12 @@ class ResonanceWidgetReceiver : GlanceAppWidgetReceiver() {
 internal suspend fun awaitController(
     context: Context,
     token: SessionToken,
-): MediaController = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+): MediaController = withContext(Dispatchers.Main) {
+    // MediaController.Builder must be called from the main looper. Glance runs
+    // action callbacks and provideGlance on background coroutines, so without
+    // this hop the connection throws and every widget button silently does
+    // nothing — which is exactly how it failed.
+    suspendCancellableCoroutine { continuation ->
     val future = MediaController.Builder(context, token).buildAsync()
     future.addListener(
         {
@@ -85,5 +93,6 @@ internal suspend fun awaitController(
         },
         com.google.common.util.concurrent.MoreExecutors.directExecutor(),
     )
-    continuation.invokeOnCancellation { future.cancel(true) }
+        continuation.invokeOnCancellation { future.cancel(true) }
+    }
 }
