@@ -251,11 +251,12 @@ private fun ResonanceRoot(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
-        // Only on the library itself. Every overlay above it either has its own
-        // horizontal gesture or has no business being dismissed sideways, and
-        // the sideways slop of a vertical fling was enough to drag it open.
-        gesturesEnabled = drawerState.isOpen ||
-            (!showPlayer && !showQueue && !showSearch && !showFolders && detail == null),
+        // Opening is the button's job only. An edge swipe competes with the
+        // system back gesture on one side and with the pager's own horizontal
+        // swipe on the other, and lost to both often enough to be unreliable.
+        // Swiping the sheet closed stays on: that direction competes with
+        // nothing.
+        gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             LibraryDrawer(
                 settings = settings,

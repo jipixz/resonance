@@ -296,13 +296,14 @@ fun QueueSheet(
                     }
                 },
         ) {
-            Box(
+            // The entire header is the drag handle — pill, title and the
+            // overflow button alike. Scoping it to the pill alone meant closing
+            // the sheet from halfway down the queue required scrolling back to
+            // the top first, just to reach a gesture that was always available
+            // a few pixels higher.
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 12.dp)
-                    // Looks like a drag handle, so it should actually be one —
-                    // independent of the list-boundary gesture above: this
-                    // works no matter where the list is scrolled to.
                     .pointerInput(Unit) {
                         detectVerticalDragGestures(
                             onDragEnd = { dismissScope.launch { settleDismissDrag(0f) } },
@@ -312,6 +313,11 @@ fun QueueSheet(
                             dismissOffsetPx = (dismissOffsetPx + dragAmount).coerceAtLeast(0f)
                         }
                     },
+            ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Box(
@@ -380,6 +386,7 @@ fun QueueSheet(
                     )
                 }
             }
+            }
 
             Box(modifier = Modifier.weight(1f)) {
             LazyColumn(
@@ -401,15 +408,16 @@ fun QueueSheet(
                         // dragged, since a reorder is already tracking the finger
                         // 1:1 and a second animation on top of that fights it.
                         modifier = Modifier.animateItem(
-                            fadeInSpec = tween(durationMillis = 340),
-                            fadeOutSpec = tween(durationMillis = 280),
+                            fadeInSpec = tween(durationMillis = 250),
+                            fadeOutSpec = tween(durationMillis = 190),
                             placementSpec = if (draggingIndex != null) {
                                 null
                             } else {
-                                // Low stiffness on purpose: the gap closing is
-                                // meant to be watchable, not merely non-instant.
+                                // Watchable, but no longer languid: the swipe
+                                // itself now crosses the whole row, so the gap
+                                // closing after it has less patience to spend.
                                 spring(
-                                    stiffness = Spring.StiffnessLow,
+                                    stiffness = Spring.StiffnessMediumLow,
                                     dampingRatio = Spring.DampingRatioNoBouncy,
                                     visibilityThreshold = IntOffset(1, 1),
                                 )
