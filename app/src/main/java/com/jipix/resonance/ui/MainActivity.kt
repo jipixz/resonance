@@ -25,10 +25,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -96,6 +92,7 @@ import com.jipix.resonance.ui.theme.WordmarkFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.jipix.resonance.ui.ResonanceIcons
 
 class MainActivity : ComponentActivity() {
 
@@ -390,7 +387,7 @@ private fun ResonanceRoot(
                             dismissAction = if (data.visuals.withDismissAction) {
                                 {
                                     IconButton(onClick = { data.dismiss() }) {
-                                        Icon(Icons.Rounded.Close, contentDescription = "Cerrar")
+                                        Icon(ResonanceIcons.Close, contentDescription = "Cerrar")
                                     }
                                 }
                             } else {
@@ -433,7 +430,7 @@ private fun ResonanceRoot(
                             },
                             actions = {
                                 IconButton(onClick = { showSearch = true }) {
-                                    Icon(Icons.Rounded.Search, contentDescription = "Buscar")
+                                    Icon(ResonanceIcons.Search, contentDescription = "Buscar")
                                 }
                             },
                         )

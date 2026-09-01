@@ -12,12 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -41,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.jipix.resonance.R
 import com.jipix.resonance.core.Settings
 import com.jipix.resonance.ui.theme.WordmarkFont
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * The navigation drawer, in the shape Gmail and Calendar use: a titled header,
@@ -116,15 +111,15 @@ fun LibraryDrawer(
                 }
             }
 
-            Destination(Icons.Rounded.MusicNote, "Canciones", selectedTab == 0) { onSelectTab(0) }
-            Destination(Icons.Rounded.Album, "Álbumes", selectedTab == 1) { onSelectTab(1) }
-            Destination(Icons.Rounded.Person, "Artistas", selectedTab == 2) { onSelectTab(2) }
+            Destination(ResonanceIcons.MusicNote, "Canciones", selectedTab == 0) { onSelectTab(0) }
+            Destination(ResonanceIcons.Album, "Álbumes", selectedTab == 1) { onSelectTab(1) }
+            Destination(ResonanceIcons.Person, "Artistas", selectedTab == 2) { onSelectTab(2) }
 
             SectionDivider()
 
-            Destination(Icons.Rounded.Folder, "Carpetas", selected = false, onClick = onOpenFolders)
+            Destination(ResonanceIcons.Folder, "Carpetas", selected = false, onClick = onOpenFolders)
             Destination(
-                Icons.AutoMirrored.Rounded.VolumeUp,
+                ResonanceIcons.VolumeUp,
                 "Volumen",
                 selected = false,
                 onClick = onOpenLoudness,

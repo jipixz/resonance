@@ -43,19 +43,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material.icons.rounded.Speaker
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -101,6 +88,7 @@ import com.jipix.resonance.playback.QueueItem
 import com.jipix.resonance.ui.library.asClock
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.jipix.resonance.ui.ResonanceIcons
 
 /** The artwork and metadata as one unit, so a track change animates them together. */
 private data class TrackVisual(
@@ -295,7 +283,7 @@ fun PlayerScreen(
                     .size(32.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = ResonanceIcons.KeyboardArrowUp,
                     contentDescription = "Cola",
                     tint = palette.subdued,
                     modifier = Modifier.size(22.dp),
@@ -634,7 +622,7 @@ private fun CoverBox(uri: String?, palette: PlayerPalette, modifier: Modifier = 
 @Composable
 private fun CoverImage(uri: String?, palette: PlayerPalette) {
     Icon(
-        imageVector = Icons.Rounded.Album,
+        imageVector = ResonanceIcons.Album,
         contentDescription = null,
         tint = palette.subdued,
         modifier = Modifier.size(64.dp),
@@ -698,7 +686,7 @@ private fun PlayingFromHeader(
             modifier = Modifier.align(Alignment.CenterStart).offset(x = (-16).dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
+                imageVector = ResonanceIcons.KeyboardArrowDown,
                 contentDescription = "Contraer",
                 tint = palette.content,
             )
@@ -709,7 +697,7 @@ private fun PlayingFromHeader(
             modifier = Modifier.align(Alignment.CenterEnd).offset(x = 16.dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.Bedtime,
+                imageVector = ResonanceIcons.Bedtime,
                 contentDescription = "Temporizador de apagado",
                 // Same on/dim-off language as the skip buttons at the ends of
                 // the queue — one icon, colour is the only thing that toggles.
@@ -771,7 +759,7 @@ private fun PlayingOnRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = output?.icon ?: Icons.Rounded.Speaker,
+            imageVector = output?.kind?.icon() ?: ResonanceIcons.Speaker,
             contentDescription = null,
             tint = palette.subdued,
             modifier = Modifier.size(14.dp),
@@ -906,7 +894,7 @@ private fun TransportControls(
     ) {
         IconButton(onClick = onToggleShuffle) {
             Icon(
-                imageVector = Icons.Rounded.Shuffle,
+                imageVector = ResonanceIcons.Shuffle,
                 contentDescription = "Aleatorio",
                 tint = if (state.shuffleEnabled) palette.active else palette.subdued,
             )
@@ -914,7 +902,7 @@ private fun TransportControls(
 
         IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
             Icon(
-                imageVector = Icons.Rounded.SkipPrevious,
+                imageVector = ResonanceIcons.SkipPrevious,
                 // Greyed out at the start of the queue with repeat off, so
                 // reaching the end reads without having to open it.
                 contentDescription = "Anterior",
@@ -932,7 +920,7 @@ private fun TransportControls(
             ),
         ) {
             Icon(
-                imageVector = if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                imageVector = if (state.isPlaying) ResonanceIcons.Pause else ResonanceIcons.PlayArrow,
                 contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
                 modifier = Modifier.size(36.dp),
             )
@@ -940,7 +928,7 @@ private fun TransportControls(
 
         IconButton(onClick = onNext, enabled = state.hasNext) {
             Icon(
-                imageVector = Icons.Rounded.SkipNext,
+                imageVector = ResonanceIcons.SkipNext,
                 contentDescription = "Siguiente",
                 tint = if (state.hasNext) skipTint else disabledSkipTint,
                 modifier = Modifier.size(36.dp),
@@ -950,9 +938,9 @@ private fun TransportControls(
         IconButton(onClick = onCycleRepeat) {
             Icon(
                 imageVector = if (state.repeatMode == Player.REPEAT_MODE_ONE) {
-                    Icons.Rounded.RepeatOne
+                    ResonanceIcons.RepeatOne
                 } else {
-                    Icons.Rounded.Repeat
+                    ResonanceIcons.Repeat
                 },
                 contentDescription = "Repetir",
                 tint = if (state.repeatMode == Player.REPEAT_MODE_OFF) {

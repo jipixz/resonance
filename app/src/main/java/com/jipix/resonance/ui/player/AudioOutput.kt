@@ -9,10 +9,6 @@ import android.media.AudioManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,11 +16,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.jipix.resonance.playback.OutputKind
 
-data class AudioOutput(val label: String, val icon: ImageVector)
+/**
+ * Carries the *kind* of route rather than an icon. Resolving a drawable needs a
+ * composition, and this is built from a plain function on a system callback —
+ * holding the vector here is what forced that whole path to become @Composable.
+ */
+data class AudioOutput(val label: String, val kind: OutputKind)
 
 /**
  * Which physical route media audio is currently going out on — Bluetooth
@@ -117,20 +118,20 @@ private fun currentAudioOutput(context: Context, canReadBluetoothName: Boolean):
         } else {
             null
         }
-        return AudioOutput(name ?: "Bluetooth", Icons.Rounded.Bluetooth)
+        return AudioOutput(name ?: "Bluetooth", OutputKind.Bluetooth)
     }
 
     val wired = devices.any {
         it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
     }
-    if (wired) return AudioOutput("Audífonos", Icons.Rounded.Headphones)
+    if (wired) return AudioOutput("Audífonos", OutputKind.Wired)
 
     val usb = devices.any {
         it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
             it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
     }
-    if (usb) return AudioOutput("USB", Icons.Rounded.Usb)
+    if (usb) return AudioOutput("USB", OutputKind.Usb)
 
     return null
 }

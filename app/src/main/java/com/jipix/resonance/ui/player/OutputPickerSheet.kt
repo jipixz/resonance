@@ -11,14 +11,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.PhoneAndroid
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.jipix.resonance.playback.OutputKind
 import com.jipix.resonance.playback.OutputOption
 import com.jipix.resonance.playback.OutputRouting
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * Picks which output the player renders to.
@@ -85,7 +78,7 @@ fun OutputPickerSheet(
             )
 
             OutputRow(
-                icon = Icons.Rounded.PhoneAndroid,
+                icon = ResonanceIcons.PhoneAndroid,
                 label = "Automático",
                 detail = "Sigue la salida del sistema",
                 selected = selected == OutputRouting.DEVICE_AUTOMATIC,
@@ -116,7 +109,7 @@ fun OutputPickerSheet(
             )
 
             OutputRow(
-                icon = Icons.Rounded.OpenInNew,
+                icon = ResonanceIcons.OpenInNew,
                 label = "Ajustes de sonido del sistema",
                 detail = null,
                 selected = false,
@@ -192,7 +185,7 @@ private fun OutputRow(
 
         if (selected) {
             Icon(
-                imageVector = Icons.Rounded.Check,
+                imageVector = ResonanceIcons.Check,
                 contentDescription = "Seleccionado",
                 tint = palette.active,
                 modifier = Modifier.size(20.dp),
@@ -201,9 +194,11 @@ private fun OutputRow(
     }
 }
 
-private fun OutputKind.icon(): ImageVector = when (this) {
-    OutputKind.Speaker -> Icons.Rounded.Speaker
-    OutputKind.Wired -> Icons.Rounded.Headphones
-    OutputKind.Bluetooth -> Icons.Rounded.Bluetooth
-    OutputKind.Usb -> Icons.Rounded.Usb
+/** Shared with the player's "playing on" row. */
+@Composable
+fun OutputKind.icon(): ImageVector = when (this) {
+    OutputKind.Speaker -> ResonanceIcons.Speaker
+    OutputKind.Wired -> ResonanceIcons.Headphones
+    OutputKind.Bluetooth -> ResonanceIcons.Bluetooth
+    OutputKind.Usb -> ResonanceIcons.Usb
 }
