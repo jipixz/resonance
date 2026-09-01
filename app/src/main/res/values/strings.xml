@@ -3,4 +3,6 @@
     <string name="permission_rationale">Resonance necesita acceso a tu música para construir la biblioteca.</string>
     <string name="grant_permission">Conceder acceso</string>
     <string name="library_empty">No se encontró música en este dispositivo.</string>
+    <string name="widget_description">Controla la reproducción desde la pantalla de inicio.</string>
+    <string name="widget_preview_artist">Artista</string>
 </resources>

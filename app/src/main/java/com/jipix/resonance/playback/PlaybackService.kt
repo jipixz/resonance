@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.data.media.MediaStoreScanner
+import com.jipix.resonance.widget.WidgetState
 import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -242,6 +243,11 @@ class PlaybackService : MediaSessionService() {
             }
             lastItemId = mediaItem?.songId()
             applyGainForCurrentItem()
+            publishWidgetState()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            publishWidgetState()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -252,6 +258,28 @@ class PlaybackService : MediaSessionService() {
     }
 
     private var lastItemId: Long? = null
+    /**
+     * Pushes the current track to any placed widget.
+     *
+     * Called on the events that change what a widget shows — a track change and
+     * a play/pause — and on nothing else. Position deliberately never reaches
+     * the widget: see WidgetState for why a home-screen progress bar is a
+     * background wakeup nobody asked for.
+     */
+    private fun publishWidgetState() {
+        val metadata = player.mediaMetadata
+        scope.launch {
+            WidgetState.publish(
+                context = this@PlaybackService,
+                title = metadata.title?.toString().orEmpty(),
+                artist = metadata.artist?.toString().orEmpty(),
+                artworkUri = metadata.artworkUri?.toString(),
+                isPlaying = player.isPlaying,
+                hasQueue = player.mediaItemCount > 0,
+            )
+        }
+    }
+
     private var normalizeVolume: Boolean = false
     private var analyseOnPlay: Boolean = true
     /** Guards against queueing a second analysis for a track already in flight. */

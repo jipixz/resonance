@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    targetCellWidth/Height are the Android 12+ way of stating a preferred size in
+    launcher grid cells; minWidth/minHeight are the pre-12 fallback the picker
+    still reads. Both are given so the widget lands at a sensible size on any
+    launcher instead of at whatever the grid decides.
+
+    resizeMode is horizontal|vertical because the layout genuinely answers for
+    every shape in between — see ResonanceWidget's SizeMode.Responsive.
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="60dp"
+    android:minResizeWidth="140dp"
+    android:minResizeHeight="60dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:maxResizeWidth="360dp"
+    android:maxResizeHeight="280dp"
+    android:updatePeriodMillis="0"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_description"
+    android:previewLayout="@layout/widget_preview" />

@@ -87,6 +87,7 @@ import com.jipix.resonance.ui.player.OutputPickerSheet
 import com.jipix.resonance.ui.player.PlayerScreen
 import com.jipix.resonance.ui.player.QueueSheet
 import com.jipix.resonance.ui.player.rememberPlayerPalette
+import com.jipix.resonance.ui.theme.DisplayFont
 import com.jipix.resonance.ui.theme.ResonanceTheme
 import com.jipix.resonance.ui.theme.WordmarkFont
 import kotlinx.coroutines.Dispatchers
@@ -445,7 +446,13 @@ private fun ResonanceRoot(
                                     onClick = {
                                         scope.launch { pagerState.animateScrollToPage(index) }
                                     },
-                                    text = { Text(entry.label) },
+                                    text = {
+                                        Text(
+                                            text = entry.label,
+                                            fontFamily = DisplayFont,
+                                            fontSize = 15.sp,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -549,16 +556,26 @@ private fun ResonanceRoot(
                 }
             }
 
+            // The screen keeps rendering the target it is closing.
+            //
+            // Reading `detail` directly meant the content vanished the instant it
+            // became null, leaving AnimatedVisibility to slide an empty box off
+            // the screen — the exit animation was running the whole time, over
+            // nothing. Holding the last non-null target gives it something to
+            // animate, so closing looks like the reverse of opening.
             val detailTarget = detail
+            val lastDetail = remember { mutableStateOf<DetailTarget?>(null) }
+            if (detailTarget != null) lastDetail.value = detailTarget
             AnimatedVisibility(
                 visible = detailTarget != null,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
             ) {
                 val detailSongs by viewModel.detailSongs.collectAsStateWithLifecycle()
-                if (detailTarget != null) {
+                val shown = detailTarget ?: lastDetail.value
+                if (shown != null) {
                     DetailScreen(
-                        target = detailTarget,
+                        target = shown,
                         songs = detailSongs,
                         onBack = { viewModel.closeDetail() },
                         onPlay = { index -> viewModel.playFrom(detailSongs, index) },
@@ -567,26 +584,26 @@ private fun ResonanceRoot(
                                 viewModel.playFrom(detailSongs.shuffled(), 0)
                             }
                         },
-                        onRemoveFromPlaylist = if (detailTarget is DetailTarget.Playlist) {
-                            { songId -> viewModel.removeFromPlaylist(detailTarget.playlistId, songId) }
+                        onRemoveFromPlaylist = if (shown is DetailTarget.Playlist) {
+                            { songId -> viewModel.removeFromPlaylist(shown.playlistId, songId) }
                         } else {
                             null
                         },
                         onSongMenu = { menuSong = it },
                         bottomInset = miniPlayerHeight,
-                        onExport = if (detailTarget is DetailTarget.Playlist) {
+                        onExport = if (shown is DetailTarget.Playlist) {
                             {
-                                exportingPlaylist = detailTarget
+                                exportingPlaylist = shown
                                 exportLauncher.launch(
-                                    M3uPlaylists.fileNameFor(detailTarget.title)
+                                    M3uPlaylists.fileNameFor(shown.title)
                                 )
                             }
                         } else {
                             null
                         },
-                        onPickCover = if (detailTarget is DetailTarget.Playlist) {
+                        onPickCover = if (shown is DetailTarget.Playlist) {
                             { albumId ->
-                                viewModel.setPlaylistCover(detailTarget.playlistId, albumId)
+                                viewModel.setPlaylistCover(shown.playlistId, albumId)
                             }
                         } else {
                             null
