@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.MusicNote
@@ -52,11 +53,11 @@ fun LibraryDrawer(
     selectedTab: Int,
     onSelectTab: (Int) -> Unit,
     onOpenFolders: () -> Unit,
+    onOpenLoudness: () -> Unit,
     onSetDynamicColor: (Boolean) -> Unit,
     onSetAmoled: (Boolean) -> Unit,
     onSetArtworkTint: (Boolean) -> Unit,
     onSetCrossfade: (Boolean) -> Unit,
-    onSetNormalize: (Boolean) -> Unit,
     onSetCrossfadeSeconds: (Int) -> Unit,
 ) {
     ModalDrawerSheet {
@@ -116,6 +117,12 @@ fun LibraryDrawer(
             SectionDivider()
 
             Destination(Icons.Rounded.Folder, "Carpetas", selected = false, onClick = onOpenFolders)
+            Destination(
+                Icons.AutoMirrored.Rounded.VolumeUp,
+                "Volumen",
+                selected = false,
+                onClick = onOpenLoudness,
+            )
 
             SectionDivider()
             SectionLabel("Apariencia")
@@ -138,22 +145,6 @@ fun LibraryDrawer(
 
             SectionDivider()
             SectionLabel("Reproducción")
-
-            DrawerSwitch(
-                label = "Igualar volumen",
-                checked = settings.normalizeVolume,
-                onCheckedChange = onSetNormalize,
-            )
-            if (settings.normalizeVolume) {
-                Text(
-                    text = "Mide cada pista la primera vez que suena y la nivela " +
-                        "desde la segunda. Solo baja el volumen de las más fuertes; " +
-                        "no puede subir las más bajas.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 28.dp, end = 20.dp, bottom = 8.dp),
-                )
-            }
 
             DrawerSwitch(
                 label = "Crossfade",

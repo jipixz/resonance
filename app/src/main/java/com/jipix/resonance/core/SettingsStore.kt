@@ -41,6 +41,13 @@ data class Settings(
      * decode.
      */
     val normalizeVolume: Boolean = false,
+    /**
+     * Measure a track the first time it plays. Turning this off makes the batch
+     * pass the only source of measurements, which is the point: analysis stops
+     * being something that happens behind every new song and becomes something
+     * the user runs when it suits them.
+     */
+    val analyseOnPlay: Boolean = true,
     /** Absolute folder paths the library ignores. */
     val excludedFolders: Set<String> = emptySet(),
 )
@@ -73,6 +80,8 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setNormalizeVolume(enabled: Boolean) = put(Keys.NORMALIZE, enabled)
 
+    suspend fun setAnalyseOnPlay(enabled: Boolean) = put(Keys.ANALYSE_ON_PLAY, enabled)
+
     suspend fun setQueueTapPlays(enabled: Boolean) = put(Keys.QUEUE_TAP_PLAYS, enabled)
 
     suspend fun setQueueClosesOnTap(enabled: Boolean) = put(Keys.QUEUE_CLOSES, enabled)
@@ -100,6 +109,7 @@ class SettingsStore(private val context: Context) {
         crossfadeSeconds = this[Keys.CROSSFADE_SECONDS] ?: 6,
         artworkTint = this[Keys.ARTWORK_TINT] ?: false,
         normalizeVolume = this[Keys.NORMALIZE] ?: false,
+        analyseOnPlay = this[Keys.ANALYSE_ON_PLAY] ?: true,
         queueTapPlays = this[Keys.QUEUE_TAP_PLAYS] ?: true,
         queueClosesOnTap = this[Keys.QUEUE_CLOSES] ?: false,
         infoLine = this[Keys.INFO_LINE]
@@ -115,6 +125,7 @@ class SettingsStore(private val context: Context) {
         val CROSSFADE_SECONDS = intPreferencesKey("crossfade_seconds")
         val ARTWORK_TINT = booleanPreferencesKey("artwork_tint")
         val NORMALIZE = booleanPreferencesKey("normalize_volume")
+        val ANALYSE_ON_PLAY = booleanPreferencesKey("analyse_on_play")
         val QUEUE_TAP_PLAYS = booleanPreferencesKey("queue_tap_plays")
         val QUEUE_CLOSES = booleanPreferencesKey("queue_closes_on_tap")
         val INFO_LINE = stringPreferencesKey("info_line")

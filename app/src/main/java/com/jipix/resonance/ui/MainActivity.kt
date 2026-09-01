@@ -81,6 +81,7 @@ import com.jipix.resonance.ui.library.DetailTarget
 import com.jipix.resonance.ui.library.EmptyLibrary
 import com.jipix.resonance.ui.library.FoldersScreen
 import com.jipix.resonance.ui.library.LibraryViewModel
+import com.jipix.resonance.ui.library.LoudnessScreen
 import com.jipix.resonance.ui.library.NamePlaylistDialog
 import com.jipix.resonance.ui.library.PlaylistList
 import com.jipix.resonance.ui.library.SearchScreen
@@ -196,6 +197,7 @@ private fun ResonanceRoot(
 
     var showPlayer by rememberSaveable { mutableStateOf(false) }
     var showFolders by rememberSaveable { mutableStateOf(false) }
+    var showLoudness by rememberSaveable { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
     var showOutputPicker by rememberSaveable { mutableStateOf(false) }
@@ -247,7 +249,8 @@ private fun ResonanceRoot(
     // why reopening always landed back at the songs tab.
     val activity = LocalContext.current as? Activity
     BackHandler(
-        enabled = !showPlayer && !showSearch && !showFolders && detail == null
+        enabled = !showPlayer && !showSearch && !showFolders && !showLoudness &&
+            detail == null
     ) {
         activity?.moveTaskToBack(true)
     }
@@ -275,11 +278,14 @@ private fun ResonanceRoot(
                     showFolders = true
                     scope.launch { drawerState.close() }
                 },
+                onOpenLoudness = {
+                    showLoudness = true
+                    scope.launch { drawerState.close() }
+                },
                 onSetDynamicColor = { scope.launch { settingsStore.setDynamicColor(it) } },
                 onSetAmoled = { scope.launch { settingsStore.setAmoled(it) } },
                 onSetArtworkTint = { scope.launch { settingsStore.setArtworkTint(it) } },
                 onSetCrossfade = { scope.launch { settingsStore.setCrossfade(it) } },
-                onSetNormalize = { scope.launch { settingsStore.setNormalizeVolume(it) } },
                 onSetCrossfadeSeconds = {
                     scope.launch { settingsStore.setCrossfadeSeconds(it) }
                 },
@@ -567,6 +573,36 @@ private fun ResonanceRoot(
             }
 
             AnimatedVisibility(
+                visible = showLoudness,
+                enter = slideInVertically { it },
+                exit = slideOutVertically { it },
+            ) {
+                val analysedCount by viewModel.analysedCount.collectAsStateWithLifecycle()
+                val analysis by viewModel.analysis.collectAsStateWithLifecycle()
+                LoudnessScreen(
+                    totalSongs = songs.size,
+                    analysedCount = analysedCount,
+                    progress = analysis,
+                    normalizeVolume = settings.normalizeVolume,
+                    analyseOnPlay = settings.analyseOnPlay,
+                    onSetNormalize = {
+                        scope.launch { settingsStore.setNormalizeVolume(it) }
+                    },
+                    onSetAnalyseOnPlay = {
+                        scope.launch { settingsStore.setAnalyseOnPlay(it) }
+                    },
+                    onAnalyse = { viewModel.analyseLibrary(context) },
+                    onCancel = viewModel::cancelAnalysis,
+                    onClear = {
+                        viewModel.clearAnalysis()
+                        confirm("Análisis borrado")
+                    },
+                    onBack = { showLoudness = false },
+                    bottomInset = miniPlayerHeight,
+                )
+            }
+
+            AnimatedVisibility(
                 visible = showFolders,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
@@ -787,7 +823,11 @@ private fun ResonanceRoot(
         enabled = showFolders && !showPlayer && !showSearch && !showQueue
     ) { showFolders = false }
     BackHandler(
-        enabled = detail != null && !showPlayer && !showSearch && !showFolders && !showQueue
+        enabled = showLoudness && !showPlayer && !showSearch && !showFolders && !showQueue
+    ) { showLoudness = false }
+    BackHandler(
+        enabled = detail != null && !showPlayer && !showSearch && !showFolders &&
+            !showQueue && !showLoudness
     ) { viewModel.closeDetail() }
 }
 

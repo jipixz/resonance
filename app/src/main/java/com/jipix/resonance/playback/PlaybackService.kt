@@ -85,6 +85,7 @@ class PlaybackService : MediaSessionService() {
         scope.launch {
             (application as ResonanceApp).container.settingsStore.settings.collect { settings ->
                 normalizeVolume = settings.normalizeVolume
+                analyseOnPlay = settings.analyseOnPlay
                 applyGainForCurrentItem()
                 crossfade.enabled = settings.crossfade
                 crossfade.fadeMs = settings.crossfadeSeconds * 1000L
@@ -249,6 +250,7 @@ class PlaybackService : MediaSessionService() {
 
     private var lastItemId: Long? = null
     private var normalizeVolume: Boolean = false
+    private var analyseOnPlay: Boolean = true
     /** Guards against queueing a second analysis for a track already in flight. */
     private val analysing = java.util.Collections.synchronizedSet(HashSet<Long>())
 
@@ -281,6 +283,7 @@ class PlaybackService : MediaSessionService() {
             }
 
             player.volume = 1f
+            if (!analyseOnPlay) return@launch
             if (!analysing.add(songId)) return@launch
             try {
                 val measured = LoudnessAnalyzer.analyse(

@@ -1,5 +1,6 @@
 package com.jipix.resonance.ui.library
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -10,11 +11,15 @@ import com.jipix.resonance.data.db.ArtistSummary
 import com.jipix.resonance.data.db.FolderSummary
 import com.jipix.resonance.data.db.PlaylistSummary
 import com.jipix.resonance.data.db.SongEntity
+import com.jipix.resonance.data.media.MediaStoreScanner
+import com.jipix.resonance.playback.LoudnessAnalyzer
 import com.jipix.resonance.playback.PlaybackUiState
 import com.jipix.resonance.playback.PlayerConnection
 import com.jipix.resonance.playback.QueueItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,6 +30,15 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+
+/** Progress of a batch loudness pass. */
+data class AnalysisProgress(
+    val running: Boolean = false,
+    val done: Int = 0,
+    val total: Int = 0,
+    /** Files that could not be decoded — an unsupported codec, a missing file. */
+    val failed: Int = 0,
+)
 
 /** What a detail screen is currently showing. */
 sealed interface DetailTarget {
@@ -182,6 +196,63 @@ class LibraryViewModel(
     fun clearQueue() = player.clearQueue()
 
     fun setPreferredOutput(deviceId: Int) = player.setPreferredOutput(deviceId)
+
+    // ---- loudness analysis ----
+
+    val analysedCount: StateFlow<Int> = repository.analysedCount
+        .stateIn(viewModelScope, whileVisible, 0)
+
+    private val _analysis = MutableStateFlow(AnalysisProgress())
+    val analysis: StateFlow<AnalysisProgress> = _analysis.asStateFlow()
+
+    private var analysisJob: Job? = null
+
+    /**
+     * Measures every track that has no stored value.
+     *
+     * Sequential on purpose. Decoding several files at once would finish sooner,
+     * but hardware codec instances are a limited, device-specific resource and
+     * exhausting them fails in ways that are awkward to recover from mid-run.
+     * A slower pass that always completes beats a faster one that sometimes
+     * cannot start.
+     */
+    fun analyseLibrary(context: Context) {
+        if (analysisJob?.isActive == true) return
+        analysisJob = viewModelScope.launch {
+            val pending = repository.songIdsWithoutLoudness()
+            _analysis.value = AnalysisProgress(running = true, done = 0, total = pending.size)
+
+            var done = 0
+            var failed = 0
+            for (songId in pending) {
+                if (!isActive) break
+                val lufs = LoudnessAnalyzer.analyse(context, MediaStoreScanner.songUri(songId))
+                if (lufs != null && lufs.isFinite()) {
+                    repository.storeLoudness(songId, lufs)
+                } else {
+                    failed++
+                }
+                done++
+                _analysis.value = _analysis.value.copy(done = done, failed = failed)
+            }
+
+            _analysis.value = _analysis.value.copy(running = false)
+        }
+    }
+
+    fun cancelAnalysis() {
+        analysisJob?.cancel()
+        analysisJob = null
+        _analysis.value = _analysis.value.copy(running = false)
+    }
+
+    fun clearAnalysis() {
+        viewModelScope.launch {
+            cancelAnalysis()
+            repository.clearLoudness()
+            _analysis.value = AnalysisProgress()
+        }
+    }
 
     // ---- playlist files ----
 

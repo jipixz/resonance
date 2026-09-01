@@ -114,6 +114,8 @@ class MusicRepository(
 
     val analysedCount: Flow<Int> = dao.observeAnalysedCount()
 
+    suspend fun songIdsWithoutLoudness(): List<Long> = dao.songIdsWithoutLoudness()
+
     suspend fun clearLoudness() = dao.clearLoudness()
 
 

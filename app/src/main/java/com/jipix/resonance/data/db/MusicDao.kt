@@ -164,6 +164,15 @@ interface MusicDao {
     @Upsert
     suspend fun upsertLoudness(entry: TrackLoudnessEntity)
 
+    @Query(
+        """
+        SELECT id FROM songs
+        WHERE id NOT IN (SELECT songId FROM track_loudness)
+        ORDER BY title COLLATE NOCASE ASC
+        """
+    )
+    suspend fun songIdsWithoutLoudness(): List<Long>
+
     @Query("SELECT COUNT(*) FROM track_loudness")
     fun observeAnalysedCount(): Flow<Int>
 
