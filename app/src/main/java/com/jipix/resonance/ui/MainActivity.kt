@@ -2,6 +2,7 @@ package com.jipix.resonance.ui
 
 import android.Manifest
 import android.app.Activity
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -65,6 +66,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.core.Settings
+import com.jipix.resonance.data.M3uPlaylists
 import com.jipix.resonance.core.SettingsStore
 import com.jipix.resonance.data.db.SongEntity
 import com.jipix.resonance.playback.QueueItem
@@ -86,7 +88,9 @@ import com.jipix.resonance.ui.player.QueueSheet
 import com.jipix.resonance.ui.player.rememberPlayerPalette
 import com.jipix.resonance.ui.theme.ResonanceTheme
 import com.jipix.resonance.ui.theme.WordmarkFont
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -185,6 +189,11 @@ private fun ResonanceRoot(
     var showQueue by rememberSaveable { mutableStateOf(false) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var savingQueue by rememberSaveable { mutableStateOf(false) }
+    // Held between "pick a file" and the result coming back, since the launcher
+    // hands back only a Uri and neither name nor payload travel with it.
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingExport by remember { mutableStateOf<String?>(null) }
+    var exportingPlaylist by remember { mutableStateOf<DetailTarget.Playlist?>(null) }
     var menuSong by remember { mutableStateOf<SongEntity?>(null) }
     // Snapshotted when the sheet opens rather than tracked continuously; see
     // PlayerConnection.snapshotQueue.
@@ -196,6 +205,18 @@ private fun ResonanceRoot(
     val detail by viewModel.detail.collectAsStateWithLifecycle()
 
     val palette = rememberPlayerPalette(playback.artworkUri, settings.artworkTint)
+
+    // SAF rather than a storage permission: the user points at one file and
+    // grants access to exactly that, which is both the modern API and less to
+    // ask for than blanket file access.
+    val resolver = context.contentResolver
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> pendingImportUri = uri }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri -> pendingExport = uri?.toString() }
     val snackbarHostState = remember { SnackbarHostState() }
     // Measured rather than assumed: the bar's height depends on whether it is
     // showing at all, and it carries its own navigation-bar padding inside.
@@ -425,6 +446,11 @@ private fun ResonanceRoot(
                         }
 
                         LibraryTab.Playlists -> PlaylistList(
+                            onImport = {
+                                importLauncher.launch(
+                                    arrayOf("audio/x-mpegurl", "audio/mpegurl", "*/*")
+                                )
+                            },
                             playlists = playlists,
                             onOpen = {
                                 viewModel.openDetail(DetailTarget.Playlist(it.id, it.name))
@@ -462,6 +488,16 @@ private fun ResonanceRoot(
                         },
                         onSongMenu = { menuSong = it },
                         bottomInset = miniPlayerHeight,
+                        onExport = if (detailTarget is DetailTarget.Playlist) {
+                            {
+                                exportingPlaylist = detailTarget
+                                exportLauncher.launch(
+                                    M3uPlaylists.fileNameFor(detailTarget.title)
+                                )
+                            }
+                        } else {
+                            null
+                        },
                         onPickCover = if (detailTarget is DetailTarget.Playlist) {
                             { albumId ->
                                 viewModel.setPlaylistCover(detailTarget.playlistId, albumId)
@@ -618,6 +654,57 @@ private fun ResonanceRoot(
             },
             onDismiss = { menuSong = null },
         )
+    }
+
+    // Reading and writing happen off the launcher callback: the callback fires
+    // on the main thread, and both sides of this touch the file system.
+    LaunchedEffect(pendingImportUri) {
+        val uri = pendingImportUri ?: return@LaunchedEffect
+        pendingImportUri = null
+        val content = withContext(Dispatchers.IO) {
+            runCatching {
+                resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+            }.getOrNull()
+        }
+        if (content == null) {
+            confirm("No se pudo leer el archivo")
+            return@LaunchedEffect
+        }
+        val name = uri.lastPathSegment
+            ?.substringAfterLast('/')
+            ?.substringBeforeLast('.')
+            ?.takeIf { it.isNotBlank() }
+            ?: "Lista importada"
+        viewModel.importPlaylist(name, content) { added, missing ->
+            confirm(
+                when {
+                    added == 0 -> "Ninguna pista del archivo está en tu biblioteca"
+                    missing > 0 -> "Importadas $added · $missing sin encontrar"
+                    else -> "Importadas $added pistas"
+                }
+            )
+        }
+    }
+
+    LaunchedEffect(pendingExport) {
+        val target = pendingExport ?: return@LaunchedEffect
+        val playlist = exportingPlaylist
+        pendingExport = null
+        exportingPlaylist = null
+        if (playlist == null) return@LaunchedEffect
+
+        viewModel.exportPlaylist(playlist.playlistId) { text ->
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        resolver.openOutputStream(Uri.parse(target))?.use { out ->
+                            out.write(text.toByteArray())
+                        }
+                    }.isSuccess
+                }
+                confirm(if (ok) "Lista exportada" else "No se pudo escribir el archivo")
+            }
+        }
     }
 
     if (savingQueue) {

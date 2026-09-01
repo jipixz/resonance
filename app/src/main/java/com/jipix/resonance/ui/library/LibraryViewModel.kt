@@ -3,6 +3,7 @@ package com.jipix.resonance.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.jipix.resonance.data.M3uPlaylists
 import com.jipix.resonance.data.MusicRepository
 import com.jipix.resonance.data.db.AlbumSummary
 import com.jipix.resonance.data.db.ArtistSummary
@@ -179,6 +180,34 @@ class LibraryViewModel(
     fun removeQueueDuplicates() = player.removeDuplicates()
 
     fun clearQueue() = player.clearQueue()
+
+    // ---- playlist files ----
+
+    /**
+     * Reads an M3U and turns it into a playlist. Resolution happens against the
+     * whole cached library rather than the folder-filtered flow, so importing a
+     * playlist that references an excluded folder still works — the exclusion is
+     * a browsing preference, not a claim that the file is gone.
+     */
+    fun importPlaylist(name: String, content: String, onDone: (Int, Int) -> Unit) {
+        viewModelScope.launch {
+            val paths = M3uPlaylists.readPaths(content)
+            val result = M3uPlaylists.resolve(paths, repository.allSongsOnce())
+            if (result.songs.isNotEmpty()) {
+                val id = repository.createPlaylist(name)
+                repository.addToPlaylist(id, result.songs.map { it.id })
+            }
+            onDone(result.songs.size, result.missing)
+        }
+    }
+
+    /** Serialises a playlist to extended M3U and hands it back for writing. */
+    fun exportPlaylist(playlistId: Long, onReady: (String) -> Unit) {
+        viewModelScope.launch {
+            val songs = repository.playlistSongs(playlistId).first()
+            onReady(M3uPlaylists.write(songs))
+        }
+    }
 
     fun saveQueueAsPlaylist(name: String) {
         val ids = player.queueSongIds()

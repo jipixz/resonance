@@ -22,6 +22,9 @@ interface MusicDao {
     )
     fun observeAllSongs(excludedFolders: List<String>): Flow<List<SongEntity>>
 
+    @Query("SELECT * FROM songs")
+    suspend fun getAllSongsOnce(): List<SongEntity>
+
     @Query("SELECT * FROM songs WHERE id = :id")
     suspend fun getSong(id: Long): SongEntity?
 

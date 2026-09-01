@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
@@ -67,6 +68,7 @@ fun DetailScreen(
     onRemoveFromPlaylist: ((Long) -> Unit)?,
     onSongMenu: (SongEntity) -> Unit,
     onPickCover: ((Long) -> Unit)? = null,
+    onExport: (() -> Unit)? = null,
     /** Space the persistent mini player occupies at the bottom. */
     bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier,
@@ -88,6 +90,14 @@ fun DetailScreen(
                     }
                 },
                 actions = {
+                    if (onExport != null) {
+                        IconButton(onClick = onExport) {
+                            Icon(
+                                imageVector = Icons.Rounded.Save,
+                                contentDescription = "Exportar como .m3u",
+                            )
+                        }
+                    }
                     if (onPickCover != null) {
                         IconButton(onClick = { pickingCover = true }) {
                             Icon(

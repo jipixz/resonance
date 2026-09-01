@@ -98,6 +98,12 @@ class MusicRepository(
 
     suspend fun getSongs(ids: List<Long>): List<SongEntity> = dao.getSongs(ids)
 
+    /**
+     * Every cached song, exclusions ignored. Used for resolving imported
+     * playlists, where a hidden folder should still match.
+     */
+    suspend fun allSongsOnce(): List<SongEntity> = dao.getAllSongsOnce()
+
 
 
     /**
