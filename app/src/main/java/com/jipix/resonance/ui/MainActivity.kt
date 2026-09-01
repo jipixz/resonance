@@ -696,6 +696,22 @@ private fun ResonanceRoot(
                     },
                     dismissEnabled = !showQueue && !showOutputPicker,
                     onOpenOutputPicker = { showOutputPicker = true },
+                    onOpenAlbum = {
+                        viewModel.openDetail(
+                            DetailTarget.Album(
+                                albumId = playback.albumId,
+                                title = playback.album,
+                                subtitle = playback.artist,
+                                // The session carries no release year, and the
+                                // detail screen reads it from the tracks it
+                                // loads anyway; 0 means "not stated here".
+                                year = 0,
+                            )
+                        )
+                        // The player would otherwise stay on top of the very
+                        // screen it just asked for.
+                        showPlayer = false
+                    },
                     onCollapse = { showPlayer = false },
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::next,
@@ -727,8 +743,15 @@ private fun ResonanceRoot(
                     tapPlays = settings.queueTapPlays,
                     closeOnTap = settings.queueClosesOnTap,
                     onPlayItem = { index ->
-                        viewModel.playQueueItem(index, settings.queueTapPlays)
-                        if (settings.queueClosesOnTap) showQueue = false
+                        if (index == playback.queueIndex) {
+                            // Seeking to where you already are does nothing
+                            // visible, so the tap read as dead. On the current
+                            // row the useful meaning of a tap is play/pause.
+                            viewModel.togglePlayPause()
+                        } else {
+                            viewModel.playQueueItem(index, settings.queueTapPlays)
+                            if (settings.queueClosesOnTap) showQueue = false
+                        }
                     },
                     onMoveItem = viewModel::moveQueueItem,
                     onRemoveItem = viewModel::removeQueueItem,

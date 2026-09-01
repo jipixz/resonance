@@ -136,6 +136,7 @@ fun PlayerScreen(
     queueItemAt: (Int) -> QueueItem?,
     onSeekQueueIndex: (Int) -> Unit,
     onOpenOutputPicker: () -> Unit,
+    onOpenAlbum: () -> Unit,
     /**
      * False while the queue is open over this screen. Both surfaces carry their
      * own vertical drag-to-dismiss, and with the player's still live underneath
@@ -230,6 +231,7 @@ fun PlayerScreen(
         ) {
             PlayingFromHeader(
                 album = state.album,
+                onOpenAlbum = onOpenAlbum.takeIf { state.albumId > 0 },
                 palette = palette,
                 sleepTimerActive = state.sleepTimerEndAtMs != null,
                 onCollapse = onCollapse,
@@ -678,6 +680,7 @@ private fun MarqueeText(
 @Composable
 private fun PlayingFromHeader(
     album: String,
+    onOpenAlbum: (() -> Unit)?,
     palette: PlayerPalette,
     sleepTimerActive: Boolean,
     onCollapse: () -> Unit,
@@ -724,7 +727,15 @@ private fun PlayingFromHeader(
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 48.dp),
+                .clip(RoundedCornerShape(12.dp))
+                // Only clickable when there is an album to open. A dead tap
+                // target that looks alive is worse than one that is plainly not
+                // interactive.
+                .then(
+                    if (onOpenAlbum != null) Modifier.clickable(onClick = onOpenAlbum)
+                    else Modifier
+                )
+                .padding(horizontal = 48.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(

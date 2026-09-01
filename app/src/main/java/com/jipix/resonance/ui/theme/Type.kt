@@ -22,6 +22,17 @@ private val Sans = FontFamily.Default
  */
 val WordmarkFont = FontFamily(Font(R.font.pacifico_regular))
 
+/**
+ * For tab labels and section headings only.
+ *
+ * Quicksand shares Pacifico's rounded terminals and geometric bones without
+ * being a script, so the two read as related rather than as two unrelated
+ * choices. It goes nowhere near track titles or body copy: a display face
+ * applied to a list of two thousand songs stops being character and starts
+ * being an obstacle.
+ */
+val DisplayFont = FontFamily(Font(R.font.quicksand_variable, FontWeight.Medium))
+
 val ResonanceTypography = Typography(
     displaySmall = TextStyle(
         fontFamily = Sans,

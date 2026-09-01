@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Shuffle. Replaceable: export the same name from fonts.google.com over this file. -->
+<!-- Shuffle, standard Material geometry on the 24px grid. The earlier
+     hand-drawn version of this one was wrong; keep this path. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="960"
-    android:viewportHeight="960">
+    android:viewportWidth="24"
+    android:viewportHeight="24">
     <path
         android:fillColor="#FF000000"
-        android:pathData="M600,760q-17,0 -28.5,-11.5T560,720q0,-17 11.5,-28.5T600,680l64,0L537,553l57,-57l126,126l0,-62q0,-17 11.5,-28.5T760,520q17,0 28.5,11.5T800,560l0,160q0,17 -11.5,28.5T760,760L600,760ZM234,760q-17,0 -28.5,-11.5T194,720q0,-17 11.5,-28.5T234,680l35,0l454,-454q11,-11 28,-11t28,11q11,11 11,28t-11,28L325,736q-6,6 -13.5,15t-16.5,9L234,760Zm89,-337L206,306q-11,-11 -11,-28t11,-28q11,-11 28,-11t28,11l118,118l-57,55Z" />
+        android:pathData="M10.59,9.17L5.41,4 4,5.41l5.17,5.17 1.42,-1.41zM14.5,4l2.04,2.04L4,18.59 5.41,20 17.96,7.46 20,9.5V4h-5.5zM14.83,13.41l-1.41,1.41 3.13,3.13L14.5,20H20v-5.5l-2.04,2.04 -3.13,-3.13z" />
 </vector>
