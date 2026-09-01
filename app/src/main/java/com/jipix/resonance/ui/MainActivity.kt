@@ -141,6 +141,13 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Where the collapsed player sits when there is one. Used to park the snackbar in
+ * the same place whether or not a queue exists, so a confirmation does not jump
+ * up the screen the first time something starts playing.
+ */
+private val CollapsedPlayerSlot = 64.dp
+
 private enum class LibraryTab(val label: String) {
     Songs("Canciones"),
     Albums("Álbumes"),
@@ -242,6 +249,11 @@ private fun ResonanceRoot(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // Only on the library itself. Every overlay above it either has its own
+        // horizontal gesture or has no business being dismissed sideways, and
+        // the sideways slop of a vertical fling was enough to drag it open.
+        gesturesEnabled = drawerState.isOpen ||
+            (!showPlayer && !showQueue && !showSearch && !showFolders && detail == null),
         drawerContent = {
             LibraryDrawer(
                 settings = settings,
@@ -273,9 +285,17 @@ private fun ResonanceRoot(
                     SnackbarHost(
                         hostState = snackbarHostState,
                         // The mini player is no longer a bottomBar, so Scaffold
-                        // cannot lift this clear of it any more — that offset is
-                        // now applied explicitly from the measured height.
-                        modifier = Modifier.padding(bottom = miniPlayerHeight + 2.dp),
+                        // cannot lift this clear of it any more. With a bar
+                        // present the snackbar sits just above it; with none it
+                        // takes that empty slot instead of hugging the very
+                        // bottom edge, so it lands in the same place either way.
+                        modifier = Modifier.padding(
+                            bottom = if (miniPlayerHeight > 0.dp) {
+                                miniPlayerHeight + 2.dp
+                            } else {
+                                CollapsedPlayerSlot
+                            },
+                        ),
                     ) { data ->
                         // The M3 default snackbar deliberately inverts against the
                         // theme (light chip on a dark app, dark chip on a light
@@ -578,6 +598,7 @@ private fun ResonanceRoot(
                     onCycleInfoLine = {
                         scope.launch { settingsStore.setInfoLine(settings.infoLine.next()) }
                     },
+                    dismissEnabled = !showQueue,
                     onCollapse = { showPlayer = false },
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::next,

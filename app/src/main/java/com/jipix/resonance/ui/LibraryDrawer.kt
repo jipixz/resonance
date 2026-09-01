@@ -1,6 +1,7 @@
 package com.jipix.resonance.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -27,8 +28,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jipix.resonance.R
@@ -53,10 +62,28 @@ fun LibraryDrawer(
     onSetCrossfade: (Boolean) -> Unit,
     onSetCrossfadeSeconds: (Int) -> Unit,
 ) {
-    ModalDrawerSheet {
+    // The logo is a five-bar waveform, symmetrical about a tall centre. The sheet
+    // borrows that shape rather than merely displaying it: the trailing edge is
+    // cut to the same silhouette, so the drawer reads as a piece of the mark
+    // sliding in from the side.
+    ModalDrawerSheet(
+        drawerShape = WaveformEdgeShape,
+        modifier = Modifier.fillMaxWidth(0.82f),
+    ) {
         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Row(
-                modifier = Modifier.padding(start = 28.dp, top = 28.dp, bottom = 20.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // A faint wash of the accent behind the header, brightest at
+                    // the mark and falling away — the same gesture the player
+                    // makes with the cover's colour.
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            1f to Color.Transparent,
+                        )
+                    )
+                    .padding(start = 28.dp, top = 28.dp, bottom = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(
@@ -191,5 +218,52 @@ private fun DrawerSwitch(label: String, checked: Boolean, onCheckedChange: (Bool
             modifier = Modifier.weight(1f),
         )
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+/**
+ * The drawer's trailing edge, cut to the logo's waveform: five rounded bars
+ * mirrored about a tall centre. Drawn as a path rather than an image so it scales
+ * with the sheet's height and stays crisp at any size.
+ *
+ * Kept shallow on purpose — a deep cut would eat into the row labels. This is a
+ * silhouette you notice, not one you have to navigate around.
+ */
+private val WaveformEdgeShape = object : Shape {
+    override fun createOutline(
+        size: Size,
+        layoutDirection: LayoutDirection,
+        density: Density,
+    ): Outline {
+        val depth = with(density) { 10.dp.toPx() }
+        val corner = with(density) { 16.dp.toPx() }
+        val edge = size.width - depth
+        // Five bars, so four peaks and troughs across the height; the relative
+        // heights match the logo's 3-5-7-5-3 rhythm.
+        val bars = listOf(0.32f, 0.62f, 1f, 0.62f, 0.32f)
+
+        val path = Path().apply {
+            moveTo(corner, 0f)
+            lineTo(edge, 0f)
+
+            val step = size.height / bars.size
+            bars.forEachIndexed { index, amount ->
+                val top = step * index
+                val bottom = top + step
+                val out = edge + depth * amount
+                // A rounded bump per bar rather than a hard tooth: the logo's
+                // strokes are round-capped, and a sharp sawtooth would read as a
+                // different mark entirely.
+                cubicTo(out, top + step * 0.18f, out, bottom - step * 0.18f, edge, bottom)
+            }
+
+            lineTo(edge, size.height)
+            lineTo(corner, size.height)
+            quadraticTo(0f, size.height, 0f, size.height - corner)
+            lineTo(0f, corner)
+            quadraticTo(0f, 0f, corner, 0f)
+            close()
+        }
+        return Outline.Generic(path)
     }
 }

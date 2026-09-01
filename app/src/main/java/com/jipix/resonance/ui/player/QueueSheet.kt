@@ -219,7 +219,7 @@ fun QueueSheet(
                 initialValue = dismissOffsetPx,
                 targetValue = sheetHeightPx.takeIf { it > 0f } ?: 2400f,
                 initialVelocity = velocityY,
-                animationSpec = tween(200, easing = FastOutLinearInEasing),
+                animationSpec = tween(300, easing = FastOutLinearInEasing),
             ) { value, _ -> dismissOffsetPx = value }
             onDismiss()
         } else {
@@ -350,6 +350,7 @@ fun QueueSheet(
                         )
                     }
                     QueueMenu(
+                        palette = palette,
                         expanded = menuOpen,
                         tapPlays = tapPlays,
                         closeOnTap = closeOnTap,
@@ -400,13 +401,16 @@ fun QueueSheet(
                         // dragged, since a reorder is already tracking the finger
                         // 1:1 and a second animation on top of that fights it.
                         modifier = Modifier.animateItem(
-                            fadeInSpec = tween(durationMillis = 200),
-                            fadeOutSpec = tween(durationMillis = 160),
+                            fadeInSpec = tween(durationMillis = 340),
+                            fadeOutSpec = tween(durationMillis = 280),
                             placementSpec = if (draggingIndex != null) {
                                 null
                             } else {
+                                // Low stiffness on purpose: the gap closing is
+                                // meant to be watchable, not merely non-instant.
                                 spring(
-                                    stiffness = Spring.StiffnessMediumLow,
+                                    stiffness = Spring.StiffnessLow,
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
                                     visibilityThreshold = IntOffset(1, 1),
                                 )
                             },
@@ -495,8 +499,13 @@ private fun QueueRow(
     // without ever actually being removed. Watching the settled value instead
     // only reacts once a drag has genuinely finished animating into place.
     val dismissState = rememberSwipeToDismissBoxState()
-    LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
+    // settledValue, not currentValue: currentValue flips as soon as an anchor is
+    // *committed*, which is roughly halfway across — removing there is what cut
+    // the swipe short, the row vanishing while it was still travelling.
+    // settledValue only changes once the row has finished animating clear of the
+    // edge, so the gesture reads all the way out before the list closes the gap.
+    LaunchedEffect(dismissState.settledValue) {
+        if (dismissState.settledValue != SwipeToDismissBoxValue.Settled) {
             onRemove()
         }
     }
@@ -666,6 +675,7 @@ private fun PlayingIndicator(animate: Boolean, color: Color, modifier: Modifier 
 
 @Composable
 private fun QueueMenu(
+    palette: PlayerPalette,
     expanded: Boolean,
     tapPlays: Boolean,
     closeOnTap: Boolean,
@@ -678,7 +688,13 @@ private fun QueueMenu(
     onSetTapPlays: (Boolean) -> Unit,
     onSetCloseOnTap: (Boolean) -> Unit,
 ) {
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        // The sheet behind it is entirely the cover's colour; a menu in the base
+        // theme reads as belonging to a different screen.
+        containerColor = if (palette.tinted) palette.mid else MaterialTheme.colorScheme.surface,
+    ) {
         DropdownMenuItem(
             text = { Text("Ir a la pista actual") },
             leadingIcon = { Icon(Icons.Rounded.MyLocation, contentDescription = null) },

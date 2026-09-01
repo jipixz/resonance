@@ -145,6 +145,13 @@ fun PlayerScreen(
     onCancelSleepTimer: () -> Unit,
     queueItemAt: (Int) -> QueueItem?,
     onSeekQueueIndex: (Int) -> Unit,
+    /**
+     * False while the queue is open over this screen. Both surfaces carry their
+     * own vertical drag-to-dismiss, and with the player's still live underneath
+     * one downward drag could dismiss the queue *and* the player behind it,
+     * skipping a layer. Layers close one at a time or not at all.
+     */
+    dismissEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     // Drag-to-dismiss.
@@ -169,7 +176,8 @@ fun PlayerScreen(
             .fillMaxSize()
             .onSizeChanged { heightPx = it.height.toFloat() }
             .offset { IntOffset(0, offsetY.value.roundToInt()) }
-            .pointerInput(Unit) {
+            .pointerInput(dismissEnabled) {
+                if (!dismissEnabled) return@pointerInput
                 detectVerticalDragGestures(
                     onDragEnd = {
                         dragScope.launch {

@@ -261,8 +261,20 @@ class PlayerConnection(
      */
     fun clearQueue() {
         val c = controller ?: return
-        c.stop()
-        c.clearMediaItems()
+        scope.launch {
+            // Stopping a live renderer mid-sample is what makes the click: the
+            // waveform is cut wherever it happened to be instead of at zero, and
+            // that discontinuity is exactly what a speaker reproduces as a pop.
+            // Ramping to silence first gives the output somewhere to land.
+            val steps = 14
+            repeat(steps) { step ->
+                c.volume = 1f - (step + 1f) / steps
+                delay(10)
+            }
+            c.stop()
+            c.clearMediaItems()
+            c.volume = 1f
+        }
     }
 
     fun removeQueueItem(index: Int) {
