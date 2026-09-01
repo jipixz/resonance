@@ -140,7 +140,10 @@ class PlaybackService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
         ): MediaSession.ConnectionResult =
-            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            // The single-argument builder is deprecated; this one takes the
+            // controller too, which is what lets the session tailor what it
+            // grants per caller rather than handing every connection the same set.
+            MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(
                     MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
                         .buildUpon()
