@@ -72,7 +72,7 @@ class ResonanceWidgetReceiver : GlanceAppWidgetReceiver() {
  * for one call. The future's listener resumes the coroutine; cancelling the
  * coroutine cancels the connection attempt rather than leaking it.
  */
-private suspend fun awaitController(
+internal suspend fun awaitController(
     context: Context,
     token: SessionToken,
 ): MediaController = kotlinx.coroutines.suspendCancellableCoroutine { continuation ->

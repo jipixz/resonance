@@ -24,6 +24,8 @@ import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.state.PreferencesGlanceStateDefinition
 import androidx.glance.background
 import androidx.glance.currentState
 import androidx.glance.layout.Alignment
@@ -80,6 +82,19 @@ class ResonanceWidget : GlanceAppWidget() {
     )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
+        // A widget placed while music is already playing has missed every event
+        // that would have told it anything: state is only pushed on track
+        // changes and play/pause, and neither happens just because a widget
+        // appeared. Without this it sits empty until the next song, which reads
+        // as a broken widget rather than an uninitialised one.
+        //
+        // Guarded on the state being genuinely absent, so this connects once at
+        // placement and never again.
+        val existing = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        if (existing[WidgetState.TITLE] == null) {
+            WidgetState.seedFromSession(context)
+        }
+
         provideContent {
             GlanceTheme {
                 WidgetBody()

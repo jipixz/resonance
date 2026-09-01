@@ -1,11 +1,14 @@
 package com.jipix.resonance.widget
 
+import android.content.ComponentName
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
+import androidx.media3.session.SessionToken
+import com.jipix.resonance.playback.PlaybackService
 
 /**
  * What the widget knows about playback.
@@ -29,6 +32,36 @@ object WidgetState {
     val IS_PLAYING = booleanPreferencesKey("isPlaying")
     val HAS_QUEUE = booleanPreferencesKey("hasQueue")
     val ACCENT = longPreferencesKey("accent")
+
+    /**
+     * Reads the session once and publishes what it finds.
+     *
+     * Binding here does start the service if it is not running, which sounds
+     * like exactly the sort of thing this project avoids — but the bind is
+     * released immediately, and a MediaSessionService with nothing queued does
+     * not promote itself to the foreground or hold anything open. The
+     * alternative is a widget that stays blank until the next track change.
+     */
+    suspend fun seedFromSession(context: Context) {
+        val token = SessionToken(
+            context,
+            ComponentName(context, PlaybackService::class.java),
+        )
+        val controller = runCatching { awaitController(context, token) }.getOrNull() ?: return
+        try {
+            val metadata = controller.mediaMetadata
+            publish(
+                context = context,
+                title = metadata.title?.toString().orEmpty(),
+                artist = metadata.artist?.toString().orEmpty(),
+                artworkUri = metadata.artworkUri?.toString(),
+                isPlaying = controller.isPlaying,
+                hasQueue = controller.mediaItemCount > 0,
+            )
+        } finally {
+            controller.release()
+        }
+    }
 
     suspend fun publish(
         context: Context,

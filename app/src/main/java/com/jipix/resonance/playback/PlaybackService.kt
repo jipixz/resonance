@@ -71,6 +71,9 @@ class PlaybackService : MediaSessionService() {
         player.addListener(StatsListener())
         observeSettings()
 
+        // Seeds any placed widget as soon as there is a session to read from.
+        publishWidgetState()
+
         session = MediaSession.Builder(this, player)
             .setCallback(OutputRoutingCallback())
             .setSessionActivity(openAppIntent())
