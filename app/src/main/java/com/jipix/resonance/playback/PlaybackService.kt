@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -181,6 +182,12 @@ class PlaybackService : MediaSessionService() {
 
             // null clears the preference and hands routing back to the system,
             // which is exactly what the "Automatic" entry means.
+            Log.d(
+                "OutputRoutingDiag",
+                "setPreferredAudioDevice requested=$requested resolved=${device?.id}/${device?.type} " +
+                    "positionMs=${player.currentPosition} state=${player.playbackState} " +
+                    "playWhenReady=${player.playWhenReady} speed=${player.playbackParameters.speed}",
+            )
             player.setPreferredAudioDevice(device)
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
@@ -257,6 +264,33 @@ class PlaybackService : MediaSessionService() {
             if (playbackState == Player.STATE_READY && lastItemId == null) {
                 lastItemId = player.currentMediaItem?.songId()
             }
+            Log.d("OutputRoutingDiag", "onPlaybackStateChanged state=$playbackState")
+        }
+
+        // Diagnostic trio for the Bluetooth<->local routing glitch — a device
+        // switch that forces DefaultAudioSink to rebuild its AudioTrack would
+        // show up here as a speed excursion away from 1.0 and/or a position
+        // discontinuity with reason INTERNAL, rather than as anything this app's
+        // own code triggers.
+        override fun onPlaybackParametersChanged(
+            playbackParameters: androidx.media3.common.PlaybackParameters,
+        ) {
+            Log.d("OutputRoutingDiag", "onPlaybackParametersChanged speed=${playbackParameters.speed}")
+        }
+
+        override fun onPositionDiscontinuity(
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int,
+        ) {
+            Log.d(
+                "OutputRoutingDiag",
+                "onPositionDiscontinuity reason=$reason oldMs=${oldPosition.positionMs} newMs=${newPosition.positionMs}",
+            )
+        }
+
+        override fun onIsLoadingChanged(isLoading: Boolean) {
+            Log.d("OutputRoutingDiag", "onIsLoadingChanged isLoading=$isLoading positionMs=${player.currentPosition}")
         }
     }
 
