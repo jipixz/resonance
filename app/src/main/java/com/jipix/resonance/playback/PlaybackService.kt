@@ -25,6 +25,7 @@ import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -181,7 +182,7 @@ class PlaybackService : MediaSessionService() {
 
             // null clears the preference and hands routing back to the system,
             // which is exactly what the "Automatic" entry means.
-            player.setPreferredAudioDevice(device)
+            switchOutputSmoothly(device)
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
     }
@@ -283,6 +284,62 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    /** True while an output change is ramping, so gain changes stay out of its way. */
+    private var switchingOutput = false
+
+    /**
+     * Moves playback to another output without the click.
+     *
+     * `setPreferredAudioDevice` hands a *live* AudioTrack to a different device.
+     * Android does not fade that handoff — it is an app-level API, and the
+     * waveform is simply cut wherever it happened to be and resumed on the new
+     * route. At full amplitude that discontinuity is the pop.
+     *
+     * So this does what the system does for its own transitions: ramp to
+     * silence, switch, ramp back. The ramp is deliberately asymmetric — faster
+     * out than in — because a quick duck reads as intentional while a quick
+     * return reads as a jolt.
+     *
+     * ## What this does *not* fix, and cannot
+     *
+     * Android keeps a separate volume index per output device. Moving from a
+     * headset at 5/15 to a speaker at 12/15 gets louder, and that is the
+     * system's stored preference for that speaker, not a glitch. No app can
+     * override it without hijacking the user's own volume setting, which would
+     * be worse. Every player behaves this way; it is only noticeable here
+     * because the switch is instant rather than a cable being pulled.
+     */
+    private fun switchOutputSmoothly(device: android.media.AudioDeviceInfo?) {
+        if (switchingOutput) return
+        switchingOutput = true
+
+        scope.launch {
+            // Captured, not assumed to be 1.0: loudness normalisation may have
+            // this track sitting at a reduced gain already.
+            val target = player.volume
+            try {
+                val steps = 10
+                repeat(steps) { step ->
+                    player.volume = target * (1f - (step + 1f) / steps)
+                    delay(10)
+                }
+
+                player.setPreferredAudioDevice(device)
+                // The route needs a moment to settle before anything is audible
+                // on it; coming back too early puts the ramp on the old device.
+                delay(140)
+
+                repeat(steps) { step ->
+                    player.volume = target * ((step + 1f) / steps)
+                    delay(18)
+                }
+            } finally {
+                player.volume = target
+                switchingOutput = false
+            }
+        }
+    }
+
     private var normalizeVolume: Boolean = false
     private var analyseOnPlay: Boolean = true
     /** Guards against queueing a second analysis for a track already in flight. */
@@ -302,6 +359,10 @@ class PlaybackService : MediaSessionService() {
      * path, which is the trade this refuses.
      */
     private fun applyGainForCurrentItem() {
+        // An output switch owns the volume while it ramps; stepping on it
+        // mid-ramp is how you get a second, worse click.
+        if (switchingOutput) return
+
         val songId = player.currentMediaItem?.songId()
         if (!normalizeVolume || songId == null) {
             player.volume = 1f
