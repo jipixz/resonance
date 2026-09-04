@@ -2,6 +2,7 @@ package com.jipix.resonance.playback
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Bundle
 import android.util.Log
@@ -13,6 +14,7 @@ import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -25,8 +27,10 @@ import com.jipix.resonance.widget.WidgetState
 import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -41,6 +45,7 @@ class PlaybackService : MediaSessionService() {
     private lateinit var crossfade: CrossfadeEngine
     private var session: MediaSession? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var routingSwitchJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -70,6 +75,7 @@ class PlaybackService : MediaSessionService() {
         crossfade.start()
 
         player.addListener(StatsListener())
+        player.addAnalyticsListener(OutputRoutingAnalyticsListener())
         observeSettings()
 
         // Seeds any placed widget as soon as there is a session to read from.
@@ -188,8 +194,46 @@ class PlaybackService : MediaSessionService() {
                     "positionMs=${player.currentPosition} state=${player.playbackState} " +
                     "playWhenReady=${player.playWhenReady} speed=${player.playbackParameters.speed}",
             )
-            player.setPreferredAudioDevice(device)
+            // Diagnostics (AnalyticsListener, StatsListener) showed nothing at
+            // all disruptive at the Media3 level around a bare
+            // setPreferredAudioDevice call — no AudioTrack rebuild, no
+            // discontinuity, offload never even engaged on this device. But
+            // physically disconnecting Bluetooth (which pauses via
+            // onAudioBecomingNoisy) makes no pop while a live switch does —
+            // see switchOutput's own doc comment for what that points at.
+            routingSwitchJob?.cancel()
+            routingSwitchJob = scope.launch { switchOutput(device) }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+        }
+    }
+
+    /**
+     * Pauses, changes the output device, then resumes — modelled directly on
+     * the one output-switch path already confirmed glitch-free on device:
+     * physically disconnecting Bluetooth, which Android turns into a pause
+     * via ACTION_AUDIO_BECOMING_NOISY (handled by
+     * setHandleAudioBecomingNoisy(true) in onCreate) rather than a live
+     * reroute. Two earlier attempts assumed the click was an audible-
+     * discontinuity problem fixable while the stream kept playing — a volume
+     * duck, then a duck plus dropping offload for the switch — and neither
+     * changed anything. Both kept playWhenReady true the entire time; this
+     * is the first attempt that actually stops output before touching the
+     * device, the one variable every clean case observed on this device has
+     * in common. Android's own official docs on output changes
+     * (developer.android.com/media/platform/output) only ever describe the
+     * reactive pause-on-noisy path too, nothing about a live in-place
+     * switch — there may simply not be a supported way to do this without
+     * pausing.
+     */
+    private suspend fun switchOutput(device: AudioDeviceInfo?) {
+        val wasPlaying = player.isPlaying
+        try {
+            player.pause()
+            delay(PAUSE_SETTLE_MS)
+            player.setPreferredAudioDevice(device)
+            delay(SETTLE_MS)
+        } finally {
+            if (wasPlaying) player.play()
         }
     }
 
@@ -294,6 +338,68 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    /**
+     * The Player-level StatsListener diagnostics above came back completely
+     * clean around every setPreferredAudioDevice call in the first round of
+     * this investigation — no discontinuity, no speed change, no rebuffer.
+     * That rules out anything this app's own playback logic is doing and
+     * points at the native AudioTrack/AudioSink layer, which sits below
+     * Player.Listener entirely. AnalyticsListener reaches one level deeper:
+     * if a device switch forces DefaultAudioSink to tear down and rebuild
+     * its AudioTrack, onAudioTrackReleased/onAudioTrackInitialized firing
+     * back-to-back around the routing call would confirm exactly that,
+     * with no code path here able to prevent it — it's how Android itself
+     * re-routes a live AudioTrack to a new output device.
+     */
+    private inner class OutputRoutingAnalyticsListener : AnalyticsListener {
+        override fun onAudioTrackInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig,
+        ) {
+            Log.d(
+                "OutputRoutingDiag",
+                "onAudioTrackInitialized sampleRate=${audioTrackConfig.sampleRate} " +
+                    "channelConfig=${audioTrackConfig.channelConfig} " +
+                    "encoding=${audioTrackConfig.encoding} offload=${audioTrackConfig.offload} " +
+                    "positionMs=${player.currentPosition}",
+            )
+        }
+
+        override fun onAudioTrackReleased(
+            eventTime: AnalyticsListener.EventTime,
+            audioTrackConfig: androidx.media3.exoplayer.audio.AudioSink.AudioTrackConfig,
+        ) {
+            Log.d(
+                "OutputRoutingDiag",
+                "onAudioTrackReleased offload=${audioTrackConfig.offload} positionMs=${player.currentPosition}",
+            )
+        }
+
+        override fun onAudioUnderrun(
+            eventTime: AnalyticsListener.EventTime,
+            bufferSize: Int,
+            bufferSizeMs: Long,
+            elapsedSinceLastFeedMs: Long,
+        ) {
+            Log.d(
+                "OutputRoutingDiag",
+                "onAudioUnderrun bufferSizeMs=$bufferSizeMs elapsedSinceLastFeedMs=$elapsedSinceLastFeedMs " +
+                    "positionMs=${player.currentPosition}",
+            )
+        }
+
+        override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+            Log.w("OutputRoutingDiag", "onAudioSinkError positionMs=${player.currentPosition}", audioSinkError)
+        }
+
+        override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
+            Log.d(
+                "OutputRoutingDiag",
+                "onAudioSessionIdChanged audioSessionId=$audioSessionId positionMs=${player.currentPosition}",
+            )
+        }
+    }
+
     private var lastItemId: Long? = null
     /**
      * Pushes the current track to any placed widget.
@@ -372,4 +478,9 @@ class PlaybackService : MediaSessionService() {
         }
     }
     private var crossfadeAdvancing = false
+
+    private companion object {
+        const val PAUSE_SETTLE_MS = 80L
+        const val SETTLE_MS = 120L
+    }
 }
