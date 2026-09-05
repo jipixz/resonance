@@ -224,9 +224,21 @@ class PlaybackService : MediaSessionService() {
      * reactive pause-on-noisy path too, nothing about a live in-place
      * switch — there may simply not be a supported way to do this without
      * pausing.
+     *
+     * One thing this does not and cannot fix: the destination device's
+     * volume *level* changing. Android keeps a separate volume index per
+     * output device — a headset at 5/15 and the speaker at 12/15 are two
+     * independently stored preferences, and switching applies whichever one
+     * belongs to the new route. That is the system's own remembered setting
+     * for that device, not a bug, and overriding it would mean overriding
+     * the user's own volume choice for that output.
      */
     private suspend fun switchOutput(device: AudioDeviceInfo?) {
         val wasPlaying = player.isPlaying
+        // Locks applyGainForCurrentItem out for the duration — two things
+        // writing player.volume at once (a loudness-normalisation gain
+        // landing mid-switch) is how you get a second, worse click.
+        switchingOutput = true
         try {
             player.pause()
             delay(PAUSE_SETTLE_MS)
@@ -234,6 +246,7 @@ class PlaybackService : MediaSessionService() {
             delay(SETTLE_MS)
         } finally {
             if (wasPlaying) player.play()
+            switchingOutput = false
         }
     }
 
@@ -423,6 +436,14 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    /**
+     * True for the duration of [switchOutput]'s pause/switch/resume, so
+     * [applyGainForCurrentItem] doesn't write player.volume out from under
+     * it — the same collision that motivated locking gain changes out
+     * during a crossfade, applied here for the same reason.
+     */
+    private var switchingOutput = false
+
     private var normalizeVolume: Boolean = false
     private var analyseOnPlay: Boolean = true
     /** Guards against queueing a second analysis for a track already in flight. */
@@ -442,6 +463,12 @@ class PlaybackService : MediaSessionService() {
      * path, which is the trade this refuses.
      */
     private fun applyGainForCurrentItem() {
+        // A gapless auto-advance landing mid-switch (see switchOutput) would
+        // otherwise apply a gain change while the player is deliberately
+        // paused for the route change — harmless in practice, but there is
+        // no reason for the two to interleave at all.
+        if (switchingOutput) return
+
         val songId = player.currentMediaItem?.songId()
         if (!normalizeVolume || songId == null) {
             player.volume = 1f
