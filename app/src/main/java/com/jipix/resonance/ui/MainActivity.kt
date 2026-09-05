@@ -70,6 +70,7 @@ import com.jipix.resonance.data.M3uPlaylists
 import com.jipix.resonance.core.SettingsStore
 import com.jipix.resonance.data.db.SongEntity
 import com.jipix.resonance.playback.QueueItem
+import com.jipix.resonance.playback.SystemOutputSwitcher
 import com.jipix.resonance.ui.library.AddToPlaylistSheet
 import com.jipix.resonance.ui.library.AlbumGrid
 import com.jipix.resonance.ui.library.ArtistList
@@ -84,7 +85,6 @@ import com.jipix.resonance.ui.library.PlaylistList
 import com.jipix.resonance.ui.library.SearchScreen
 import com.jipix.resonance.ui.library.SongList
 import com.jipix.resonance.ui.player.MiniPlayer
-import com.jipix.resonance.ui.player.OutputPickerSheet
 import com.jipix.resonance.ui.player.PlayerScreen
 import com.jipix.resonance.ui.player.QueueSheet
 import com.jipix.resonance.ui.player.rememberPlayerPalette
@@ -199,7 +199,6 @@ private fun ResonanceRoot(
     var showLoudness by rememberSaveable { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
-    var showOutputPicker by rememberSaveable { mutableStateOf(false) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var savingQueue by rememberSaveable { mutableStateOf(false) }
     var exportingPlaylist by remember { mutableStateOf<DetailTarget.Playlist?>(null) }
@@ -713,8 +712,12 @@ private fun ResonanceRoot(
                     onCycleInfoLine = {
                         scope.launch { settingsStore.setInfoLine(settings.infoLine.next()) }
                     },
-                    dismissEnabled = !showQueue && !showOutputPicker,
-                    onOpenOutputPicker = { showOutputPicker = true },
+                    dismissEnabled = !showQueue,
+                    onOpenOutputPicker = {
+                        if (!SystemOutputSwitcher.open(context)) {
+                            confirm("Este dispositivo no tiene selector de salida")
+                        }
+                    },
                     onOpenAlbum = {
                         viewModel.openDetail(
                             DetailTarget.Album(
@@ -798,14 +801,6 @@ private fun ResonanceRoot(
                 )
             }
         }
-    }
-
-    if (showOutputPicker) {
-        OutputPickerSheet(
-            palette = palette,
-            onPick = viewModel::setPreferredOutput,
-            onDismiss = { showOutputPicker = false },
-        )
     }
 
     menuSong?.let { song ->

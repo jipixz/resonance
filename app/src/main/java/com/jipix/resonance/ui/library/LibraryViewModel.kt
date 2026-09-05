@@ -195,7 +195,6 @@ class LibraryViewModel(
 
     fun clearQueue() = player.clearQueue()
 
-    fun setPreferredOutput(deviceId: Int) = player.setPreferredOutput(deviceId)
 
     // ---- loudness analysis ----
 
