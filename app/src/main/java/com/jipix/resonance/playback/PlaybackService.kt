@@ -15,6 +15,8 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.data.media.MediaStoreScanner
 import com.jipix.resonance.widget.WidgetState
@@ -69,10 +71,13 @@ class PlaybackService : MediaSessionService() {
         player.addListener(StatsListener())
         observeSettings()
 
-        // Seeds any placed widget as soon as there is a session to read from.
-        publishWidgetState()
-
+        // Deliberately no publishWidgetState() here. At this point the player
+        // has just been constructed and holds nothing, so publishing would
+        // overwrite a perfectly good "last played" state with an empty one — and
+        // since the widget's own seeding binds this service, the widget was
+        // wiping itself the moment it tried to read.
         session = MediaSession.Builder(this, player)
+            .setCallback(ResumptionCallback())
             .setSessionActivity(openAppIntent())
             .build()
     }
@@ -191,10 +196,12 @@ class PlaybackService : MediaSessionService() {
             lastItemId = mediaItem?.songId()
             applyGainForCurrentItem()
             publishWidgetState()
+            rememberQueue()
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             publishWidgetState()
+            rememberQueue()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -224,6 +231,71 @@ class PlaybackService : MediaSessionService() {
      * the widget: see WidgetState for why a home-screen progress bar is a
      * background wakeup nobody asked for.
      */
+    /**
+     * Stores the queue so playback can resume after the process is gone.
+     *
+     * Written on track changes and play/pause rather than continuously: the
+     * position is a few seconds stale at worst, and a DataStore write on every
+     * position tick is exactly the kind of background churn this project exists
+     * to avoid.
+     */
+    private fun rememberQueue() {
+        if (player.mediaItemCount == 0) return
+        val ids = (0 until player.mediaItemCount)
+            .mapNotNull { player.getMediaItemAt(it).songId() }
+        if (ids.isEmpty()) return
+
+        val index = player.currentMediaItemIndex
+        val position = player.currentPosition
+        scope.launch {
+            (application as ResonanceApp).container.lastQueueStore
+                .save(ids, index, position)
+        }
+    }
+
+    /**
+     * Restores the last queue when something asks to play with nothing loaded —
+     * the widget or the notification after the app has been killed.
+     *
+     * Without this the service starts, finds an empty player, and does nothing
+     * visible, which reads as a dead button.
+     */
+    private inner class ResumptionCallback : MediaSession.Callback {
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            scope.launch {
+                val container = (application as ResonanceApp).container
+                val stored = container.lastQueueStore.load()
+                if (stored == null) {
+                    future.setException(UnsupportedOperationException("No queue to resume"))
+                    return@launch
+                }
+
+                // Ordered by the stored queue, not by whatever order the lookup
+                // returns — a playlist is its sequence.
+                val byId = container.musicRepository.getSongs(stored.songIds)
+                    .associateBy { it.id }
+                val items = stored.songIds.mapNotNull { byId[it] }.toMediaItems()
+
+                if (items.isEmpty()) {
+                    future.setException(UnsupportedOperationException("Queue no longer resolves"))
+                    return@launch
+                }
+                future.set(
+                    MediaSession.MediaItemsWithStartPosition(
+                        items,
+                        stored.index.coerceIn(0, items.lastIndex),
+                        stored.positionMs,
+                    )
+                )
+            }
+            return future
+        }
+    }
+
     private fun publishWidgetState() {
         val metadata = player.mediaMetadata
         scope.launch {

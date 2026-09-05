@@ -14,7 +14,13 @@
     with no layout to show before Glance's first draw, which is what stopped the
     widget responding to taps or offering resize handles at all.
 
-    maxResizeWidth/Height briefly matched SizeMode.Responsive's largest bucket
+    No maxResizeWidth/Height: they were set while SizeMode.Responsive had a
+    largest bucket to match, and they are a hard ceiling on how far a launcher
+    will let the widget grow. With SizeMode.Exact the layout answers for any
+    size, so capping it only stops the user making it bigger — which is exactly
+    the symptom seen on the ASUS launcher.
+
+    Historical note: maxResizeWidth/Height briefly matched SizeMode.Responsive's largest bucket
     exactly (250x180) to stop content floating in dead space past it — that
     left zero growth room in the width axis from the widget's own default
     size, and the launcher's answer to "nowhere left to grow" was to drop the
@@ -30,8 +36,6 @@
     android:minResizeHeight="60dp"
     android:targetCellWidth="4"
     android:targetCellHeight="1"
-    android:maxResizeWidth="360dp"
-    android:maxResizeHeight="280dp"
     android:updatePeriodMillis="0"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"

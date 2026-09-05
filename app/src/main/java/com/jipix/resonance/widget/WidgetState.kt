@@ -58,6 +58,16 @@ object WidgetState {
         hasQueue: Boolean,
     ) {
         ResonanceWidget().updateIf(context) { prefs ->
+            // An empty update never overwrites a real one. A service that has
+            // just started, or one being torn down, momentarily reports nothing
+            // queued — and taking that at face value is what blanked the widget
+            // back to its name. Showing the last track with a play button is
+            // both more useful and more honest about what will happen next.
+            if (title.isBlank() && !hasQueue && !prefs[TITLE].isNullOrBlank()) {
+                prefs[IS_PLAYING] = false
+                return@updateIf
+            }
+
             prefs[TITLE] = title
             prefs[ARTIST] = artist
             prefs[ARTWORK_URI] = artworkUri.orEmpty()
