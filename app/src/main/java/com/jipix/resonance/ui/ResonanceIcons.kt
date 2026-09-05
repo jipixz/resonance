@@ -12,7 +12,7 @@ import com.jipix.resonance.R
  *
  * This replaces `material-icons-extended`, which ships one generated class per
  * icon — several thousand of them — and was the bulk of a 72 MB debug APK for
- * the sake of the 38 used here. R8 strips the rest in release builds, but debug
+ * the sake of the 35 used here. R8 strips the rest in release builds, but debug
  * builds do not run R8, so every install carried the whole set.
  *
  * Each name maps to a standalone vector drawable in `res/drawable`. To swap one,
@@ -26,7 +26,6 @@ object ResonanceIcons {
     val ArrowBack: ImageVector @Composable get() = load(R.drawable.ic_arrow_back)
     val Bedtime: ImageVector @Composable get() = load(R.drawable.ic_bedtime)
     val Bluetooth: ImageVector @Composable get() = load(R.drawable.ic_bluetooth)
-    val Check: ImageVector @Composable get() = load(R.drawable.ic_check)
     val Close: ImageVector @Composable get() = load(R.drawable.ic_close)
     val ContentCopy: ImageVector @Composable get() = load(R.drawable.ic_content_copy)
     val Delete: ImageVector @Composable get() = load(R.drawable.ic_delete)
@@ -40,14 +39,11 @@ object ResonanceIcons {
     val KeyboardArrowDown: ImageVector
         @Composable get() = load(R.drawable.ic_keyboard_arrow_down)
     val KeyboardArrowUp: ImageVector @Composable get() = load(R.drawable.ic_keyboard_arrow_up)
-    val Menu: ImageVector @Composable get() = load(R.drawable.ic_menu_waveform)
     val MoreVert: ImageVector @Composable get() = load(R.drawable.ic_more_vert)
     val MusicNote: ImageVector @Composable get() = load(R.drawable.ic_music_note)
     val MyLocation: ImageVector @Composable get() = load(R.drawable.ic_my_location)
-    val OpenInNew: ImageVector @Composable get() = load(R.drawable.ic_open_in_new)
     val Pause: ImageVector @Composable get() = load(R.drawable.ic_pause)
     val Person: ImageVector @Composable get() = load(R.drawable.ic_person)
-    val PhoneAndroid: ImageVector @Composable get() = load(R.drawable.ic_phone_android)
     val PlayArrow: ImageVector @Composable get() = load(R.drawable.ic_play_arrow)
     val PlaylistAdd: ImageVector @Composable get() = load(R.drawable.ic_playlist_add)
     val QueueMusic: ImageVector @Composable get() = load(R.drawable.ic_queue_music)

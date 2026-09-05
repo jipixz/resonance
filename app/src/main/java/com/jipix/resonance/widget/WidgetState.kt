@@ -2,7 +2,6 @@ package com.jipix.resonance.widget
 
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.state.PreferencesGlanceStateDefinition
@@ -28,7 +27,6 @@ object WidgetState {
     val ARTWORK_URI = stringPreferencesKey("artworkUri")
     val IS_PLAYING = booleanPreferencesKey("isPlaying")
     val HAS_QUEUE = booleanPreferencesKey("hasQueue")
-    val ACCENT = longPreferencesKey("accent")
 
     /**
      * Reads the session once and publishes what it finds.
