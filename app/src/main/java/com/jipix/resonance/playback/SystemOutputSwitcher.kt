@@ -22,48 +22,56 @@ import android.provider.Settings
  * fade and hand off at the actual moment of change. This is also what every
  * other player that gets this right is doing.
  *
- * ## Why an intent string and not a constant
+ * ## Why raw intent strings
  *
- * The output switcher is not in `Settings.Panel`. It is a Settings panel action
- * with no public constant, so the action name is written out and every launch
- * is checked against the package manager first — an unresolvable intent throws,
- * and a control that crashes is worse than one that lands somewhere close.
- *
- * The fall-back chain ends at the volume panel, which on Android 12+ carries the
- * same switcher one tap deeper.
+ * The switcher has no public constant and is not where its name suggests: it is
+ * a SystemUI broadcast receiver, not a Settings activity. Querying the device
+ * is what settled it. Both candidates are checked against the package manager
+ * before use, since a control that crashes is worse than one that lands
+ * somewhere close.
  */
 object SystemOutputSwitcher {
 
-    /** Settings' media output dialog — "Se reproducirá en" / "Play on". */
-    private const val ACTION_MEDIA_OUTPUT = "com.android.settings.panel.action.MEDIA_OUTPUT"
+    /**
+     * SystemUI's output dialog — the one ASUS's own volume-panel button opens,
+     * and the one behind "Reproducir Resonance en" in the volume panel.
+     *
+     * It is a *broadcast receiver*, not an activity. Querying the device settled
+     * that: nothing answers `com.android.settings.panel.action.MEDIA_OUTPUT` as
+     * an activity, while `MediaOutputDialogReceiver` answers this as a
+     * broadcast. Trying to `startActivity` it is why the first attempt fell all
+     * the way through to the volume panel and cost an extra tap.
+     */
+    private const val ACTION_MEDIA_OUTPUT_DIALOG =
+        "com.android.systemui.action.LAUNCH_MEDIA_OUTPUT_DIALOG"
 
-    /** Tells the dialog whose session to switch, rather than guessing. */
-    private const val EXTRA_PACKAGE_NAME = "com.android.settings.panel.extra.PACKAGE_NAME"
+    private const val SYSTEM_UI = "com.android.systemui"
+
+    /** Tells the dialog whose session to show, so it opens with our track in it. */
+    private const val EXTRA_PACKAGE_NAME = "package_name"
 
     /**
-     * @return false when nothing on this device could handle any of the
-     *   candidates, so the caller can say so rather than appearing to do nothing.
+     * @return false when neither the dialog nor the volume panel could be
+     *   reached, so the caller can say so rather than appearing to do nothing.
      */
     fun open(context: Context): Boolean {
-        val candidates = listOf(
-            Intent(ACTION_MEDIA_OUTPUT)
-                .putExtra(EXTRA_PACKAGE_NAME, context.packageName),
-            // Some OEM builds expose the dialog under the framework-side name.
-            Intent("android.settings.MEDIA_OUTPUT")
-                .putExtra(EXTRA_PACKAGE_NAME, context.packageName),
-            // Last resort: the volume panel, which reaches the same switcher on
-            // Android 12+ through its own output button.
-            Intent(Settings.Panel.ACTION_VOLUME),
-        )
+        val dialog = Intent(ACTION_MEDIA_OUTPUT_DIALOG)
+            .setPackage(SYSTEM_UI)
+            .putExtra(EXTRA_PACKAGE_NAME, context.packageName)
 
-        for (intent in candidates) {
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            val resolvable = context.packageManager
-                .resolveActivity(intent, 0) != null
-            if (!resolvable) continue
-            val launched = runCatching { context.startActivity(intent) }.isSuccess
-            if (launched) return true
+        val hasDialog = context.packageManager
+            .queryBroadcastReceivers(dialog, 0)
+            .isNotEmpty()
+
+        if (hasDialog && runCatching { context.sendBroadcast(dialog) }.isSuccess) {
+            return true
         }
-        return false
+
+        // The volume panel reaches the same dialog one tap deeper, which is a
+        // worse experience but a working one.
+        val panel = Intent(Settings.Panel.ACTION_VOLUME)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (context.packageManager.resolveActivity(panel, 0) == null) return false
+        return runCatching { context.startActivity(panel) }.isSuccess
     }
 }
