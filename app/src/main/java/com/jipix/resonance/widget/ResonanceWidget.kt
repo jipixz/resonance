@@ -148,8 +148,15 @@ private fun WidgetBody() {
     val isPlaying = prefs[WidgetState.IS_PLAYING] ?: false
     val hasQueue = prefs[WidgetState.HAS_QUEUE] ?: false
 
-    // Height decides row versus column; width decides how much detail the
-    // column or row can carry.
+    // Height decides row versus column; width decides how much detail either
+    // can carry.
+    //
+    // The thresholds are absolute dp because a launcher cell is not a unit —
+    // measuring two devices made that concrete. A single row is ~110dp tall on
+    // a Pixel and ~225dp on this ASUS, whose launcher uses a four-row grid on a
+    // 914dp-tall screen. So "one row" is not a shape: on one device it is a
+    // strip, on the other it is nearly a square, and the layout has to follow
+    // the pixels rather than the row count.
     val stacked = size.height >= ResonanceWidget.SQUARE.height
     val wide = size.width >= ResonanceWidget.WIDE.width
 
@@ -271,7 +278,7 @@ private fun SquareLayout(title: String, artist: String, artworkUri: String?, isP
             modifier = GlanceModifier.clickable(actionStartActivity<MainActivity>()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Artwork(artworkUri, 64.dp)
+            Artwork(artworkUri, artSizeFor(LocalSize.current, max = 96.dp))
             Spacer(GlanceModifier.height(8.dp))
             Text(
                 text = title,
@@ -300,7 +307,7 @@ private fun TallLayout(title: String, artist: String, artworkUri: String?, isPla
             modifier = GlanceModifier.clickable(actionStartActivity<MainActivity>()),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Artwork(artworkUri, 96.dp)
+            Artwork(artworkUri, artSizeFor(LocalSize.current, max = 140.dp))
             Spacer(GlanceModifier.height(10.dp))
             Text(
                 text = title,
@@ -432,3 +439,19 @@ private fun loadArtwork(context: Context, uri: String?, targetPx: Int): Bitmap? 
         }
     }.getOrNull()
 }
+
+/**
+ * How large the cover can be without crowding out everything under it.
+ *
+ * A fixed size was wrong in both directions: too small to fill this ASUS
+ * launcher's 225dp rows, and too large to leave room for the title and
+ * transport on a shorter cell. Everything below the art needs roughly 100dp —
+ * two lines of text plus a 44dp control row plus spacing — so the art gets what
+ * is left, floored so it never disappears entirely and capped so it does not
+ * balloon on a very tall placement.
+ */
+private fun artSizeFor(size: androidx.compose.ui.unit.DpSize, max: androidx.compose.ui.unit.Dp) =
+    (size.height - CHROME_HEIGHT).coerceIn(48.dp, max)
+
+/** Text, transport row and the padding around them. */
+private val CHROME_HEIGHT = 108.dp
