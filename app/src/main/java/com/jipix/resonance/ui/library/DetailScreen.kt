@@ -19,14 +19,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Save
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -51,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.jipix.resonance.data.db.SongEntity
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * One screen for albums, artists and playlists. They differ only in the header
@@ -84,7 +77,7 @@ fun DetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            imageVector = ResonanceIcons.ArrowBack,
                             contentDescription = "Volver",
                         )
                     }
@@ -93,7 +86,7 @@ fun DetailScreen(
                     if (onExport != null) {
                         IconButton(onClick = onExport) {
                             Icon(
-                                imageVector = Icons.Rounded.Save,
+                                imageVector = ResonanceIcons.Save,
                                 contentDescription = "Exportar como .m3u",
                             )
                         }
@@ -101,7 +94,7 @@ fun DetailScreen(
                     if (onPickCover != null) {
                         IconButton(onClick = { pickingCover = true }) {
                             Icon(
-                                imageVector = Icons.Rounded.Image,
+                                imageVector = ResonanceIcons.Image,
                                 contentDescription = "Elegir portada",
                             )
                         }
@@ -127,7 +120,7 @@ fun DetailScreen(
                         {
                             IconButton(onClick = { onRemoveFromPlaylist(song.id) }) {
                                 Icon(
-                                    imageVector = Icons.Rounded.Delete,
+                                    imageVector = ResonanceIcons.Delete,
                                     contentDescription = "Quitar de la lista",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -226,7 +219,7 @@ private fun DetailHeader(
 
                 is DetailTarget.Artist -> Artwork(
                     albumId = songs.firstOrNull()?.albumId ?: -1L,
-                    placeholder = Icons.Rounded.Person,
+                    placeholder = ResonanceIcons.Person,
                     modifier = Modifier
                         .size(96.dp)
                         .clip(CircleShape),
@@ -279,7 +272,7 @@ private fun DetailHeader(
                 enabled = songs.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(),
             ) {
-                Icon(Icons.Rounded.PlayArrow, contentDescription = null)
+                Icon(ResonanceIcons.PlayArrow, contentDescription = null)
                 Text("Reproducir", modifier = Modifier.padding(start = 8.dp))
             }
             OutlinedButton(
@@ -287,7 +280,7 @@ private fun DetailHeader(
                 enabled = songs.isNotEmpty(),
                 modifier = Modifier.padding(start = 12.dp),
             ) {
-                Icon(Icons.Rounded.Shuffle, contentDescription = null)
+                Icon(ResonanceIcons.Shuffle, contentDescription = null)
                 Text("Aleatorio", modifier = Modifier.padding(start = 8.dp))
             }
         }

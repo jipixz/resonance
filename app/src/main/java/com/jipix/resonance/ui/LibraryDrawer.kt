@@ -5,18 +5,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.jipix.resonance.R
 import com.jipix.resonance.core.Settings
 import com.jipix.resonance.ui.theme.WordmarkFont
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * The navigation drawer, in the shape Gmail and Calendar use: a titled header,
@@ -61,29 +57,34 @@ fun LibraryDrawer(
     onSetCrossfadeSeconds: (Int) -> Unit,
 ) {
     ModalDrawerSheet {
-        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            val accent = MaterialTheme.colorScheme.primary
+        val accent = MaterialTheme.colorScheme.primary
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                // The wash is painted here rather than on the header row, which
+                // is what the last two attempts got wrong: a background only
+                // covers the composable that draws it, so the falloff was being
+                // clipped flat at the row's bottom edge — that clip *was* the
+                // visible cut. Given the whole sheet to fade across, the radial
+                // finally has somewhere to go.
+                .drawBehind {
+                    drawRect(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                accent.copy(alpha = 0.16f),
+                                accent.copy(alpha = 0.05f),
+                                Color.Transparent,
+                            ),
+                            center = Offset(size.width * 0.18f, 0f),
+                            radius = size.height * 0.42f,
+                        )
+                    )
+                },
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // A wash of the accent centred on the mark. Radial, not
-                    // linear: a horizontal gradient still has a hard bottom edge,
-                    // and that edge landed exactly where the destinations start.
-                    // This one has no edge to land anywhere — it falls off in
-                    // every direction, dissolving down into the list.
-                    .drawBehind {
-                        drawRect(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    accent.copy(alpha = 0.18f),
-                                    accent.copy(alpha = 0.07f),
-                                    Color.Transparent,
-                                ),
-                                center = Offset(size.width * 0.16f, size.height * 0.55f),
-                                radius = size.width * 0.95f,
-                            )
-                        )
-                    }
                     .padding(start = 28.dp, top = 28.dp, bottom = 24.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -110,15 +111,15 @@ fun LibraryDrawer(
                 }
             }
 
-            Destination(Icons.Rounded.MusicNote, "Canciones", selectedTab == 0) { onSelectTab(0) }
-            Destination(Icons.Rounded.Album, "Álbumes", selectedTab == 1) { onSelectTab(1) }
-            Destination(Icons.Rounded.Person, "Artistas", selectedTab == 2) { onSelectTab(2) }
+            Destination(ResonanceIcons.MusicNote, "Canciones", selectedTab == 0) { onSelectTab(0) }
+            Destination(ResonanceIcons.Album, "Álbumes", selectedTab == 1) { onSelectTab(1) }
+            Destination(ResonanceIcons.Person, "Artistas", selectedTab == 2) { onSelectTab(2) }
 
             SectionDivider()
 
-            Destination(Icons.Rounded.Folder, "Carpetas", selected = false, onClick = onOpenFolders)
+            Destination(ResonanceIcons.Folder, "Carpetas", selected = false, onClick = onOpenFolders)
             Destination(
-                Icons.AutoMirrored.Rounded.VolumeUp,
+                ResonanceIcons.VolumeUp,
                 "Volumen",
                 selected = false,
                 onClick = onOpenLoudness,

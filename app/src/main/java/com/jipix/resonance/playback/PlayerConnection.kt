@@ -36,6 +36,8 @@ data class PlaybackUiState(
     val artist: String = "",
     val artworkUri: String? = null,
     val album: String = "",
+    /** Lets the player's header open the album this track belongs to. */
+    val albumId: Long = 0,
     /** Title of the upcoming queue item, empty when this is the last one. */
     val nextTitle: String = "",
     /** Codec and bitrate of the current track, e.g. "FLAC · 1006 kbps". */
@@ -159,6 +161,7 @@ class PlayerConnection(
             artist = metadata.artist?.toString().orEmpty(),
             artworkUri = metadata.artworkUri?.toString(),
             album = metadata.albumTitle?.toString().orEmpty(),
+            albumId = metadata.extras?.getLong(EXTRA_ALBUM_ID) ?: 0L,
             nextTitle = c.peekNextTitle(),
             format = metadata.extras.describeFormat(),
             durationMs = c.duration.coerceAtLeast(0L),
@@ -259,14 +262,6 @@ class PlayerConnection(
      * cleanly instead of letting the removal yank it out from under a playing
      * renderer, which leaves the session reporting a track it no longer has.
      */
-    /**
-     * Pins playback to one output, or hands routing back to the system with
-     * [OutputRouting.DEVICE_AUTOMATIC]. The service does the actual work; see
-     * [OutputRouting].
-     */
-    fun setPreferredOutput(deviceId: Int) {
-        controller?.sendCustomCommand(OutputRouting.command, OutputRouting.args(deviceId))
-    }
 
     fun clearQueue() {
         val c = controller ?: return

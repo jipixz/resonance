@@ -32,16 +32,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.MyLocation
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,6 +84,7 @@ import com.jipix.resonance.ui.library.EdgeGlow
 import com.jipix.resonance.ui.library.asClock
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import com.jipix.resonance.ui.ResonanceIcons
 
 private val RowHeight = 56.dp
 
@@ -336,7 +327,7 @@ fun QueueSheet(
             ) {
                 IconButton(onClick = onDismiss) {
                     Icon(
-                        imageVector = Icons.Rounded.KeyboardArrowDown,
+                        imageVector = ResonanceIcons.KeyboardArrowDown,
                         contentDescription = "Cerrar",
                         tint = palette.content,
                     )
@@ -350,7 +341,7 @@ fun QueueSheet(
                 Box {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(
-                            imageVector = Icons.Rounded.MoreVert,
+                            imageVector = ResonanceIcons.MoreVert,
                             contentDescription = "Opciones de la cola",
                             tint = palette.content,
                         )
@@ -532,7 +523,7 @@ private fun QueueRow(
                 },
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.Delete,
+                    imageVector = ResonanceIcons.Delete,
                     contentDescription = "Quitar de la cola",
                     tint = MaterialTheme.colorScheme.onErrorContainer,
                 )
@@ -610,7 +601,7 @@ private fun QueueRow(
         }
 
         Icon(
-            imageVector = Icons.Rounded.DragHandle,
+            imageVector = ResonanceIcons.DragHandle,
             contentDescription = "Reordenar",
             tint = palette.subdued,
             modifier = Modifier
@@ -705,27 +696,27 @@ private fun QueueMenu(
     ) {
         DropdownMenuItem(
             text = { Text("Ir a la pista actual") },
-            leadingIcon = { Icon(Icons.Rounded.MyLocation, contentDescription = null) },
+            leadingIcon = { Icon(ResonanceIcons.MyLocation, contentDescription = null) },
             onClick = onGoToCurrent,
         )
         DropdownMenuItem(
             text = { Text("Aleatorizar lo que falta") },
-            leadingIcon = { Icon(Icons.Rounded.Shuffle, contentDescription = null) },
+            leadingIcon = { Icon(ResonanceIcons.Shuffle, contentDescription = null) },
             onClick = onShuffle,
         )
         DropdownMenuItem(
             text = { Text("Quitar duplicados") },
-            leadingIcon = { Icon(Icons.Rounded.ContentCopy, contentDescription = null) },
+            leadingIcon = { Icon(ResonanceIcons.ContentCopy, contentDescription = null) },
             onClick = onRemoveDuplicates,
         )
         DropdownMenuItem(
             text = { Text("Vaciar la cola") },
-            leadingIcon = { Icon(Icons.Rounded.DeleteSweep, contentDescription = null) },
+            leadingIcon = { Icon(ResonanceIcons.DeleteSweep, contentDescription = null) },
             onClick = onClearQueue,
         )
         DropdownMenuItem(
             text = { Text("Guardar como lista") },
-            leadingIcon = { Icon(Icons.Rounded.PlaylistAdd, contentDescription = null) },
+            leadingIcon = { Icon(ResonanceIcons.PlaylistAdd, contentDescription = null) },
             onClick = onSaveAsPlaylist,
         )
 

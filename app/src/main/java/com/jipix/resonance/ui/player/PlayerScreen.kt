@@ -43,18 +43,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
-import androidx.compose.material.icons.rounded.KeyboardArrowUp
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.Repeat
-import androidx.compose.material.icons.rounded.RepeatOne
-import androidx.compose.material.icons.rounded.Shuffle
-import androidx.compose.material.icons.rounded.SkipNext
-import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -70,6 +58,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
@@ -100,6 +89,7 @@ import com.jipix.resonance.playback.QueueItem
 import com.jipix.resonance.ui.library.asClock
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.jipix.resonance.ui.ResonanceIcons
 
 /** The artwork and metadata as one unit, so a track change animates them together. */
 private data class TrackVisual(
@@ -146,6 +136,7 @@ fun PlayerScreen(
     queueItemAt: (Int) -> QueueItem?,
     onSeekQueueIndex: (Int) -> Unit,
     onOpenOutputPicker: () -> Unit,
+    onOpenAlbum: () -> Unit,
     /**
      * False while the queue is open over this screen. Both surfaces carry their
      * own vertical drag-to-dismiss, and with the player's still live underneath
@@ -240,6 +231,7 @@ fun PlayerScreen(
         ) {
             PlayingFromHeader(
                 album = state.album,
+                onOpenAlbum = onOpenAlbum.takeIf { state.albumId > 0 },
                 palette = palette,
                 sleepTimerActive = state.sleepTimerEndAtMs != null,
                 onCollapse = onCollapse,
@@ -294,7 +286,7 @@ fun PlayerScreen(
                     .size(32.dp),
             ) {
                 Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowUp,
+                    imageVector = ResonanceIcons.KeyboardArrowUp,
                     contentDescription = "Cola",
                     tint = palette.subdued,
                     modifier = Modifier.size(22.dp),
@@ -331,15 +323,17 @@ private fun PortraitBody(
     onOpenOutputPicker: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The cover is the one element here that can lose size without losing
+    // function — text and controls can't shrink below a legible/tappable
+    // floor the way a square image can. So it's the only thing that yields:
+    // living in a weight(1f) box means it only ever gets whatever height is
+    // left over after the fixed-size siblings below take theirs, instead of
+    // a fixed share that could push those siblings off-screen at large font/
+    // display scales. CoverCarousel's own min(widthDerived, heightAvailable)
+    // then caps the square by *either* dimension, whichever is tighter.
     Column(modifier = modifier) {
-        // A fixed floor of breathing room under the header, on top of the
-        // weighted spacer below — the weight alone still let the cover ride
-        // right up against the header text on shorter screens.
+        // A fixed floor of breathing room under the header.
         Spacer(Modifier.height(24.dp))
-
-        // Weighted 1.4 above against 1 below so the cover sits below the optical
-        // centre rather than riding high against the header.
-        Spacer(Modifier.weight(1.4f))
 
         // Deliberately not inside the 24dp-padded column below: the current
         // cover fills exactly the same width it always did (the pager's own
@@ -347,25 +341,27 @@ private fun PortraitBody(
         // runs edge-to-edge, so the neighbouring covers peek into what used
         // to be dead margin at the true screen edge instead of eating into
         // the current cover's own size.
-        CoverCarousel(
-            state = state,
-            palette = palette,
-            queueItemAt = queueItemAt,
-            onSeekQueueIndex = onSeekQueueIndex,
-            edgePeek = 24.dp,
-            sizeFromWidth = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
+        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            CoverCarousel(
+                state = state,
+                palette = palette,
+                queueItemAt = queueItemAt,
+                onSeekQueueIndex = onSeekQueueIndex,
+                edgePeek = 24.dp,
+                sizeFromWidth = true,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         Column(modifier = Modifier.padding(horizontal = 24.dp)) {
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(20.dp))
 
             TrackBlock(state = state, palette = palette)
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(16.dp))
 
             Scrubber(state = state, onSeek = onSeek, palette = palette)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             TransportControls(
                 state = state,
                 palette = palette,
@@ -383,11 +379,9 @@ private fun PortraitBody(
             )
         }
 
-        // Centred in the space between the controls and the queue chevron
-        // below this whole block, rather than crowding either one.
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(20.dp))
         PlayingOnRow(output = output, palette = palette, onClick = onOpenOutputPicker)
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(12.dp))
     }
 }
 
@@ -578,26 +572,56 @@ private fun CoverCarousel(
             )
         }
     }
+    // Both of these are read through rememberUpdatedState rather than captured
+    // directly, and that is not defensive style — it is the fix for a real bug.
+    //
+    // This effect is keyed on `pagerState`, which never changes, so it launches
+    // exactly once and its lambda closes over whatever `state` was at that
+    // moment. Reading `state.queueIndex` inside meant comparing the settled page
+    // against the index the queue had when the player was *opened*, frozen
+    // forever after. Swiping onto that one index compared equal, the seek never
+    // fired, and the track silently refused to change — while every other index
+    // worked, which is exactly why it looked like one cursed album rather than a
+    // logic error.
+    val currentIndex by rememberUpdatedState(state.queueIndex)
+    val seekToIndex by rememberUpdatedState(onSeekQueueIndex)
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { settled ->
-            if (settled != state.queueIndex) onSeekQueueIndex(settled)
+            if (settled != currentIndex) seekToIndex(settled)
         }
     }
 
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
-        val pageSize = if (sizeFromWidth) maxWidth - edgePeek * 2 else maxHeight
-        val pagerWidth = if (sizeFromWidth) maxWidth else pageSize + edgePeek * 2
-        val pagerHeight = if (sizeFromWidth) pageSize else maxHeight
+        // Capped by whichever of the two is tighter: in portrait this is
+        // normally width-bound (the screen is taller than it is wide, so
+        // maxHeight has headroom to spare) and nothing here changes from
+        // before. When a caller's weight(1f) box has been squeezed by large
+        // font/display scale, maxHeight becomes the tighter bound instead,
+        // and the square shrinks to it rather than overflowing.
+        //
+        // pagerWidth is always pageSize + the peek on both sides — the same
+        // formula the landscape (sizeFromWidth = false) branch already used.
+        // In the ordinary uncapped case that reduces to exactly maxWidth, so
+        // nothing changes there; it only narrows once pageSize is actually
+        // capped, and the caller's own Alignment.Center is what re-centres a
+        // narrower pager instead of leaving it pinned to the left edge —
+        // which is what a fixed pagerWidth = maxWidth alongside a shrunk
+        // page did the first time this was tried.
+        val pageSize = if (sizeFromWidth) minOf(maxWidth - edgePeek * 2, maxHeight) else maxHeight
+        val pagerWidth = pageSize + edgePeek * 2
+        val pagerHeight = pageSize
+        android.util.Log.d(
+            "CoverSizeDiag",
+            "sizeFromWidth=$sizeFromWidth maxWidth=$maxWidth maxHeight=$maxHeight " +
+                "widthDerived=${maxWidth - edgePeek * 2} pageSize=$pageSize pagerWidth=$pagerWidth",
+        )
 
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.width(pagerWidth).height(pagerHeight),
-            // This is the whole trick: each page's own width is the pager's
-            // width minus this padding, so making it equal to whatever margin
-            // the caller would otherwise have reserved is what keeps the
-            // current cover exactly the size it always was — the neighbours
-            // peek into that margin rather than shrinking the current cover
-            // to make room for themselves.
+            // Each page's own width is the pager's width minus this padding
+            // — PageSize.Fill (the default) derives it that way, so it's
+            // always exactly pageSize now that pagerWidth is defined off it.
             contentPadding = PaddingValues(horizontal = edgePeek),
             pageSpacing = 8.dp,
         ) { page ->
@@ -633,7 +657,7 @@ private fun CoverBox(uri: String?, palette: PlayerPalette, modifier: Modifier = 
 @Composable
 private fun CoverImage(uri: String?, palette: PlayerPalette) {
     Icon(
-        imageVector = Icons.Rounded.Album,
+        imageVector = ResonanceIcons.Album,
         contentDescription = null,
         tint = palette.subdued,
         modifier = Modifier.size(64.dp),
@@ -675,6 +699,7 @@ private fun MarqueeText(
 @Composable
 private fun PlayingFromHeader(
     album: String,
+    onOpenAlbum: (() -> Unit)?,
     palette: PlayerPalette,
     sleepTimerActive: Boolean,
     onCollapse: () -> Unit,
@@ -697,7 +722,7 @@ private fun PlayingFromHeader(
             modifier = Modifier.align(Alignment.CenterStart).offset(x = (-16).dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.KeyboardArrowDown,
+                imageVector = ResonanceIcons.KeyboardArrowDown,
                 contentDescription = "Contraer",
                 tint = palette.content,
             )
@@ -708,7 +733,7 @@ private fun PlayingFromHeader(
             modifier = Modifier.align(Alignment.CenterEnd).offset(x = 16.dp),
         ) {
             Icon(
-                imageVector = Icons.Rounded.Bedtime,
+                imageVector = ResonanceIcons.Bedtime,
                 contentDescription = "Temporizador de apagado",
                 // Same on/dim-off language as the skip buttons at the ends of
                 // the queue — one icon, colour is the only thing that toggles.
@@ -721,7 +746,15 @@ private fun PlayingFromHeader(
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
-                .padding(horizontal = 48.dp),
+                .clip(RoundedCornerShape(12.dp))
+                // Only clickable when there is an album to open. A dead tap
+                // target that looks alive is worse than one that is plainly not
+                // interactive.
+                .then(
+                    if (onOpenAlbum != null) Modifier.clickable(onClick = onOpenAlbum)
+                    else Modifier
+                )
+                .padding(horizontal = 48.dp, vertical = 4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -756,7 +789,10 @@ private fun PlayingOnRow(
     palette: PlayerPalette,
     onClick: () -> Unit,
 ) {
-    if (output == null) return
+    // Rendered even with nothing plugged in. This row is the only way into the
+    // output picker, and hiding it on the built-in speaker made the picker
+    // unreachable in exactly the situation where someone might want to send the
+    // audio somewhere else.
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -767,13 +803,13 @@ private fun PlayingOnRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            imageVector = output.icon,
+            imageVector = output?.kind?.icon() ?: ResonanceIcons.Speaker,
             contentDescription = null,
             tint = palette.subdued,
             modifier = Modifier.size(14.dp),
         )
         Text(
-            text = output.label,
+            text = output?.label ?: "Altavoz del teléfono",
             style = MaterialTheme.typography.labelSmall,
             color = palette.subdued,
             maxLines = 1,
@@ -902,7 +938,7 @@ private fun TransportControls(
     ) {
         IconButton(onClick = onToggleShuffle) {
             Icon(
-                imageVector = Icons.Rounded.Shuffle,
+                imageVector = ResonanceIcons.Shuffle,
                 contentDescription = "Aleatorio",
                 tint = if (state.shuffleEnabled) palette.active else palette.subdued,
             )
@@ -910,45 +946,45 @@ private fun TransportControls(
 
         IconButton(onClick = onPrevious, enabled = state.hasPrevious) {
             Icon(
-                imageVector = Icons.Rounded.SkipPrevious,
+                imageVector = ResonanceIcons.SkipPrevious,
                 // Greyed out at the start of the queue with repeat off, so
                 // reaching the end reads without having to open it.
                 contentDescription = "Anterior",
                 tint = if (state.hasPrevious) skipTint else disabledSkipTint,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             )
         }
 
         FilledIconButton(
             onClick = onPlayPause,
-            modifier = Modifier.size(72.dp),
+            modifier = Modifier.size(64.dp),
             colors = IconButtonDefaults.filledIconButtonColors(
                 containerColor = palette.active,
                 contentColor = palette.active.readableOn(),
             ),
         ) {
             Icon(
-                imageVector = if (state.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                imageVector = if (state.isPlaying) ResonanceIcons.Pause else ResonanceIcons.PlayArrow,
                 contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             )
         }
 
         IconButton(onClick = onNext, enabled = state.hasNext) {
             Icon(
-                imageVector = Icons.Rounded.SkipNext,
+                imageVector = ResonanceIcons.SkipNext,
                 contentDescription = "Siguiente",
                 tint = if (state.hasNext) skipTint else disabledSkipTint,
-                modifier = Modifier.size(36.dp),
+                modifier = Modifier.size(32.dp),
             )
         }
 
         IconButton(onClick = onCycleRepeat) {
             Icon(
                 imageVector = if (state.repeatMode == Player.REPEAT_MODE_ONE) {
-                    Icons.Rounded.RepeatOne
+                    ResonanceIcons.RepeatOne
                 } else {
-                    Icons.Rounded.Repeat
+                    ResonanceIcons.Repeat
                 },
                 contentDescription = "Repetir",
                 tint = if (state.repeatMode == Player.REPEAT_MODE_OFF) {

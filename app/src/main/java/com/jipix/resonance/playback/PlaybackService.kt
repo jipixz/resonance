@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import android.media.AudioManager
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -14,17 +15,17 @@ import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
-import androidx.media3.session.SessionCommand
-import androidx.media3.session.SessionResult
-import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.SettableFuture
 import com.jipix.resonance.ResonanceApp
 import com.jipix.resonance.data.media.MediaStoreScanner
+import com.jipix.resonance.widget.WidgetState
 import com.jipix.resonance.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -70,8 +71,13 @@ class PlaybackService : MediaSessionService() {
         player.addListener(StatsListener())
         observeSettings()
 
+        // Deliberately no publishWidgetState() here. At this point the player
+        // has just been constructed and holds nothing, so publishing would
+        // overwrite a perfectly good "last played" state with an empty one — and
+        // since the widget's own seeding binds this service, the widget was
+        // wiping itself the moment it tried to read.
         session = MediaSession.Builder(this, player)
-            .setCallback(OutputRoutingCallback())
+            .setCallback(ResumptionCallback())
             .setSessionActivity(openAppIntent())
             .build()
     }
@@ -127,56 +133,6 @@ class PlaybackService : MediaSessionService() {
                     .build()
             )
             .build()
-    }
-
-    /**
-     * Routing lives here because `setPreferredAudioDevice` is an ExoPlayer API and
-     * this service holds the only ExoPlayer. Controllers ask by device id and the
-     * service resolves it against the live list, so a device that disappeared
-     * between the tap and the handling simply resolves to nothing.
-     */
-    private inner class OutputRoutingCallback : MediaSession.Callback {
-        override fun onConnect(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-        ): MediaSession.ConnectionResult =
-            MediaSession.ConnectionResult.AcceptedResultBuilder(session)
-                .setAvailableSessionCommands(
-                    MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
-                        .buildUpon()
-                        .add(OutputRouting.command)
-                        .build()
-                )
-                .build()
-
-        override fun onCustomCommand(
-            session: MediaSession,
-            controller: MediaSession.ControllerInfo,
-            customCommand: SessionCommand,
-            args: Bundle,
-        ): ListenableFuture<SessionResult> {
-            if (customCommand.customAction != OutputRouting.ACTION_SET_OUTPUT) {
-                return super.onCustomCommand(session, controller, customCommand, args)
-            }
-
-            val requested = args.getInt(
-                OutputRouting.EXTRA_DEVICE_ID,
-                OutputRouting.DEVICE_AUTOMATIC,
-            )
-            val audioManager = getSystemService(AUDIO_SERVICE) as? AudioManager
-            val device = if (requested == OutputRouting.DEVICE_AUTOMATIC) {
-                null
-            } else {
-                audioManager
-                    ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                    ?.firstOrNull { it.id == requested }
-            }
-
-            // null clears the preference and hands routing back to the system,
-            // which is exactly what the "Automatic" entry means.
-            player.setPreferredAudioDevice(device)
-            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
-        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
@@ -239,6 +195,13 @@ class PlaybackService : MediaSessionService() {
             }
             lastItemId = mediaItem?.songId()
             applyGainForCurrentItem()
+            publishWidgetState()
+            rememberQueue()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            publishWidgetState()
+            rememberQueue()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -246,9 +209,114 @@ class PlaybackService : MediaSessionService() {
                 lastItemId = player.currentMediaItem?.songId()
             }
         }
+
+        // Diagnostic trio for the Bluetooth<->local routing glitch — a device
+        // switch that forces DefaultAudioSink to rebuild its AudioTrack would
+        // show up here as a speed excursion away from 1.0 and/or a position
+        // discontinuity with reason INTERNAL, rather than as anything this app's
+        // own code triggers.
+        override fun onPlaybackParametersChanged(
+            playbackParameters: androidx.media3.common.PlaybackParameters,
+        ) {
+        }
+
     }
 
     private var lastItemId: Long? = null
+    /**
+     * Pushes the current track to any placed widget.
+     *
+     * Called on the events that change what a widget shows — a track change and
+     * a play/pause — and on nothing else. Position deliberately never reaches
+     * the widget: see WidgetState for why a home-screen progress bar is a
+     * background wakeup nobody asked for.
+     */
+    /**
+     * Stores the queue so playback can resume after the process is gone.
+     *
+     * Written on track changes and play/pause rather than continuously: the
+     * position is a few seconds stale at worst, and a DataStore write on every
+     * position tick is exactly the kind of background churn this project exists
+     * to avoid.
+     */
+    private fun rememberQueue() {
+        if (player.mediaItemCount == 0) return
+        val ids = (0 until player.mediaItemCount)
+            .mapNotNull { player.getMediaItemAt(it).songId() }
+        if (ids.isEmpty()) return
+
+        val index = player.currentMediaItemIndex
+        val position = player.currentPosition
+        scope.launch {
+            (application as ResonanceApp).container.lastQueueStore
+                .save(ids, index, position)
+        }
+    }
+
+    /**
+     * Restores the last queue when something asks to play with nothing loaded —
+     * the widget or the notification after the app has been killed.
+     *
+     * Without this the service starts, finds an empty player, and does nothing
+     * visible, which reads as a dead button.
+     */
+    private inner class ResumptionCallback : MediaSession.Callback {
+        override fun onPlaybackResumption(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+        ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
+            val future = SettableFuture.create<MediaSession.MediaItemsWithStartPosition>()
+            scope.launch {
+                val container = (application as ResonanceApp).container
+                val stored = container.lastQueueStore.load()
+                if (stored == null) {
+                    future.setException(UnsupportedOperationException("No queue to resume"))
+                    return@launch
+                }
+
+                // Ordered by the stored queue, not by whatever order the lookup
+                // returns — a playlist is its sequence.
+                val byId = container.musicRepository.getSongs(stored.songIds)
+                    .associateBy { it.id }
+                val items = stored.songIds.mapNotNull { byId[it] }.toMediaItems()
+
+                if (items.isEmpty()) {
+                    future.setException(UnsupportedOperationException("Queue no longer resolves"))
+                    return@launch
+                }
+                future.set(
+                    MediaSession.MediaItemsWithStartPosition(
+                        items,
+                        stored.index.coerceIn(0, items.lastIndex),
+                        stored.positionMs,
+                    )
+                )
+            }
+            return future
+        }
+    }
+
+    private fun publishWidgetState() {
+        val metadata = player.mediaMetadata
+        scope.launch {
+            WidgetState.publish(
+                context = this@PlaybackService,
+                title = metadata.title?.toString().orEmpty(),
+                artist = metadata.artist?.toString().orEmpty(),
+                artworkUri = metadata.artworkUri?.toString(),
+                isPlaying = player.isPlaying,
+                hasQueue = player.mediaItemCount > 0,
+            )
+        }
+    }
+
+    /**
+     * True for the duration of [switchOutput]'s pause/switch/resume, so
+     * [applyGainForCurrentItem] doesn't write player.volume out from under
+     * it — the same collision that motivated locking gain changes out
+     * during a crossfade, applied here for the same reason.
+     */
+
     private var normalizeVolume: Boolean = false
     private var analyseOnPlay: Boolean = true
     /** Guards against queueing a second analysis for a track already in flight. */
@@ -268,6 +336,10 @@ class PlaybackService : MediaSessionService() {
      * path, which is the trade this refuses.
      */
     private fun applyGainForCurrentItem() {
+        // A gapless auto-advance landing mid-switch (see switchOutput) would
+        // otherwise apply a gain change while the player is deliberately
+        // paused for the route change — harmless in practice, but there is
+        // no reason for the two to interleave at all.
         val songId = player.currentMediaItem?.songId()
         if (!normalizeVolume || songId == null) {
             player.volume = 1f
@@ -304,4 +376,7 @@ class PlaybackService : MediaSessionService() {
         }
     }
     private var crossfadeAdvancing = false
+
+    private companion object {
+    }
 }

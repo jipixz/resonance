@@ -15,10 +15,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -35,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.jipix.resonance.playback.PlaybackUiState
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * The persistent bar above the gesture area. Deliberately shallow — it reads one
@@ -144,9 +141,9 @@ fun MiniPlayer(
                     IconButton(onClick = onPlayPause, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = if (state.isPlaying) {
-                                Icons.Rounded.Pause
+                                ResonanceIcons.Pause
                             } else {
-                                Icons.Rounded.PlayArrow
+                                ResonanceIcons.PlayArrow
                             },
                             contentDescription = if (state.isPlaying) "Pausar" else "Reproducir",
                             tint = content,
@@ -155,7 +152,7 @@ fun MiniPlayer(
 
                     IconButton(onClick = onNext, modifier = Modifier.size(40.dp)) {
                         Icon(
-                            imageVector = Icons.Rounded.SkipNext,
+                            imageVector = ResonanceIcons.SkipNext,
                             contentDescription = "Siguiente",
                             tint = content,
                         )

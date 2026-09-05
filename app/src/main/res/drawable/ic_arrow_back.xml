@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Arrow back. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M313,520l184,184q12,12 11.5,28T496,760q-12,11 -28,11.5T440,760L184,504q-6,-6 -8.5,-13t-2.5,-15q0,-8 2.5,-15t8.5,-13l256,-256q11,-11 27.5,-11t28.5,11q12,12 12,28.5T496,249L313,440l447,0q17,0 28.5,11.5Q800,463 800,480q0,17 -11.5,28.5Q777,520 760,520l-447,0Z" />
+</vector>
