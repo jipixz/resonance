@@ -18,6 +18,8 @@ class AppContainer(context: Context, appScope: CoroutineScope) {
 
     val settingsStore = SettingsStore(context)
 
+    val lastQueueStore = LastQueueStore(context)
+
     val musicRepository = MusicRepository(
         dao = database.musicDao(),
         scanner = MediaStoreScanner(context),

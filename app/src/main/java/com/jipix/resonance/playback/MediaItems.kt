@@ -34,6 +34,7 @@ fun SongEntity.toMediaItem(): MediaItem =
                         putString(EXTRA_MIME_TYPE, mimeType)
                         putInt(EXTRA_BITRATE, bitrate)
                         putLong(EXTRA_DURATION, durationMs)
+                        putLong(EXTRA_ALBUM_ID, albumId)
                     }
                 )
                 .setIsBrowsable(false)
@@ -47,6 +48,7 @@ fun List<SongEntity>.toMediaItems(): List<MediaItem> = map { it.toMediaItem() }
 const val EXTRA_MIME_TYPE = "resonance.mimeType"
 const val EXTRA_BITRATE = "resonance.bitrate"
 const val EXTRA_DURATION = "resonance.duration"
+const val EXTRA_ALBUM_ID = "resonance.albumId"
 
 /** Recovers the MediaStore id the queue item was built from. */
 fun MediaItem.songId(): Long? = mediaId.toLongOrNull()

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- USB. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M440,880q-17,0 -28.5,-11.5T400,840l0,-280l-40,0q-33,0 -56.5,-23.5T280,480l0,-80q-17,0 -28.5,-11.5T240,360q0,-17 11.5,-28.5T280,320l160,0q17,0 28.5,11.5T480,360q0,17 -11.5,28.5T440,400l0,80l80,0l0,-80q-17,0 -28.5,-11.5T480,360q0,-17 11.5,-28.5T520,320l160,0q17,0 28.5,11.5T720,360q0,17 -11.5,28.5T680,400l0,80q0,33 -23.5,56.5T600,560l-40,0l0,120l40,0q17,0 28.5,11.5T640,720q0,17 -11.5,28.5T600,760l-40,0l0,80q0,17 -11.5,28.5T520,880l-80,0Zm40,-800l60,104l-120,0l60,-104Z" />
+</vector>

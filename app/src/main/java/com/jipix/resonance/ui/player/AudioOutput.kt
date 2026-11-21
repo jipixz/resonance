@@ -9,10 +9,6 @@ import android.media.AudioManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,11 +16,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.graphics.vector.ImageVector
+import com.jipix.resonance.ui.ResonanceIcons
 
-data class AudioOutput(val label: String, val icon: ImageVector)
+/**
+ * Carries the *kind* of route rather than an icon. Resolving a drawable needs a
+ * composition, and this is built from a plain function on a system callback —
+ * holding the vector here is what forced that whole path to become @Composable.
+ */
+/**
+ * Which family of output a route belongs to. Lived in the playback layer while
+ * the app did its own routing; with that handed to the system chooser it is
+ * only ever a label and an icon, so it belongs here.
+ */
+enum class OutputKind { Speaker, Wired, Bluetooth, Usb }
+
+data class AudioOutput(val label: String, val kind: OutputKind)
 
 /**
  * Which physical route media audio is currently going out on — Bluetooth
@@ -117,20 +126,20 @@ private fun currentAudioOutput(context: Context, canReadBluetoothName: Boolean):
         } else {
             null
         }
-        return AudioOutput(name ?: "Bluetooth", Icons.Rounded.Bluetooth)
+        return AudioOutput(name ?: "Bluetooth", OutputKind.Bluetooth)
     }
 
     val wired = devices.any {
         it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES || it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
     }
-    if (wired) return AudioOutput("Audífonos", Icons.Rounded.Headphones)
+    if (wired) return AudioOutput("Audífonos", OutputKind.Wired)
 
     val usb = devices.any {
         it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
             it.type == AudioDeviceInfo.TYPE_USB_DEVICE ||
             it.type == AudioDeviceInfo.TYPE_USB_ACCESSORY
     }
-    if (usb) return AudioOutput("USB", Icons.Rounded.Usb)
+    if (usb) return AudioOutput("USB", OutputKind.Usb)
 
     return null
 }
@@ -142,4 +151,17 @@ private fun AudioDeviceInfo.namesThisPhone(): Boolean {
     return listOf(Build.MODEL, Build.PRODUCT, Build.DEVICE).any { self ->
         self.isNotBlank() && (name.contains(self, ignoreCase = true) || self.contains(name, ignoreCase = true))
     }
+}
+
+/**
+ * The icon for a route kind. Lived alongside the in-app output picker until that
+ * was dropped in favour of the system chooser; it belongs next to [AudioOutput]
+ * either way, since that is what carries the kind.
+ */
+@Composable
+fun OutputKind.icon(): ImageVector = when (this) {
+    OutputKind.Speaker -> ResonanceIcons.Speaker
+    OutputKind.Wired -> ResonanceIcons.Headphones
+    OutputKind.Bluetooth -> ResonanceIcons.Bluetooth
+    OutputKind.Usb -> ResonanceIcons.Usb
 }

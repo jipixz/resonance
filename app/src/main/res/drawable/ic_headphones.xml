@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Headphones. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M280,800q-33,0 -56.5,-23.5T200,720L200,520q0,-116 82,-198t198,-82q116,0 198,82t82,198l0,200q0,33 -23.5,56.5T680,800L600,800q-17,0 -28.5,-11.5T560,760L560,560q0,-17 11.5,-28.5T600,520l80,0q0,-83 -58.5,-141.5T480,320q-83,0 -141.5,58.5T280,520l80,0q17,0 28.5,11.5T400,560l0,200q0,17 -11.5,28.5T360,800L280,800Z" />
+</vector>

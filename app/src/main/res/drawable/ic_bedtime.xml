@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Bedtime. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M480,880q-83,0 -156,-31.5T197,763q-54,-54 -85.5,-127T80,480q0,-146 93,-257.5T410,89q21,-4 35.5,12t9.5,37q-8,35 -12,64.5t-4,57.5q0,127 89,216t216,89q30,0 60,-4.5t62,-13.5q20,-6 36,7.5t13,34.5q-20,145 -131,238T480,880Z" />
+</vector>

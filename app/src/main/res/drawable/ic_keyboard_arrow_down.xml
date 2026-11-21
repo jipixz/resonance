@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chevron down. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M480,584q-8,0 -15,-2.5t-13,-8.5L240,361q-11,-11 -11,-28t11,-28q11,-11 28,-11t28,11l184,184l184,-184q11,-11 28,-11t28,11q11,11 11,28t-11,28L508,573q-6,6 -13,8.5t-15,2.5Z" />
+</vector>

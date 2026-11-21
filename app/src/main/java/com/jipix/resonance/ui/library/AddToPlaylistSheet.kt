@@ -6,9 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -28,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.jipix.resonance.data.db.PlaylistSummary
 import com.jipix.resonance.data.db.SongEntity
+import com.jipix.resonance.ui.ResonanceIcons
 
 /** Long-pressing a track opens this: where does it go. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,14 +57,14 @@ fun AddToPlaylistSheet(
             )
 
             SheetRow(
-                icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+                icon = { Icon(ResonanceIcons.Add, contentDescription = null) },
                 label = "Nueva lista…",
                 onClick = { naming = true },
             )
 
             playlists.forEach { playlist ->
                 SheetRow(
-                    icon = { Icon(Icons.Rounded.QueueMusic, contentDescription = null) },
+                    icon = { Icon(ResonanceIcons.QueueMusic, contentDescription = null) },
                     label = playlist.name,
                     onClick = { onAddTo(playlist.id) },
                 )

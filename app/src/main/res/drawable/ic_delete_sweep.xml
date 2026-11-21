@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Delete sweep. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M600,800q-33,0 -56.5,-23.5T520,720L520,400q-17,0 -28.5,-11.5T480,360q0,-17 11.5,-28.5T520,320l80,0q0,-17 11.5,-28.5T640,280l80,0q17,0 28.5,11.5T760,320l80,0q17,0 28.5,11.5T880,360q0,17 -11.5,28.5T840,400l0,320q0,33 -23.5,56.5T760,800L600,800ZM120,680q-17,0 -28.5,-11.5T80,640q0,-17 11.5,-28.5T120,600l200,0q17,0 28.5,11.5T360,640q0,17 -11.5,28.5T320,680L120,680Zm0,-160q-17,0 -28.5,-11.5T80,480q0,-17 11.5,-28.5T120,440l280,0q17,0 28.5,11.5T440,480q0,17 -11.5,28.5T400,520L120,520Zm0,-160q-17,0 -28.5,-11.5T80,320q0,-17 11.5,-28.5T120,280l280,0q17,0 28.5,11.5T440,320q0,17 -11.5,28.5T400,360L120,360Z" />
+</vector>

@@ -25,10 +25,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Menu
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,6 +57,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -73,6 +70,7 @@ import com.jipix.resonance.data.M3uPlaylists
 import com.jipix.resonance.core.SettingsStore
 import com.jipix.resonance.data.db.SongEntity
 import com.jipix.resonance.playback.QueueItem
+import com.jipix.resonance.playback.SystemOutputSwitcher
 import com.jipix.resonance.ui.library.AddToPlaylistSheet
 import com.jipix.resonance.ui.library.AlbumGrid
 import com.jipix.resonance.ui.library.ArtistList
@@ -87,15 +85,16 @@ import com.jipix.resonance.ui.library.PlaylistList
 import com.jipix.resonance.ui.library.SearchScreen
 import com.jipix.resonance.ui.library.SongList
 import com.jipix.resonance.ui.player.MiniPlayer
-import com.jipix.resonance.ui.player.OutputPickerSheet
 import com.jipix.resonance.ui.player.PlayerScreen
 import com.jipix.resonance.ui.player.QueueSheet
 import com.jipix.resonance.ui.player.rememberPlayerPalette
+import com.jipix.resonance.ui.theme.DisplayFont
 import com.jipix.resonance.ui.theme.ResonanceTheme
 import com.jipix.resonance.ui.theme.WordmarkFont
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.jipix.resonance.ui.ResonanceIcons
 
 class MainActivity : ComponentActivity() {
 
@@ -200,13 +199,8 @@ private fun ResonanceRoot(
     var showLoudness by rememberSaveable { mutableStateOf(false) }
     var showSearch by rememberSaveable { mutableStateOf(false) }
     var showQueue by rememberSaveable { mutableStateOf(false) }
-    var showOutputPicker by rememberSaveable { mutableStateOf(false) }
     var creatingPlaylist by rememberSaveable { mutableStateOf(false) }
     var savingQueue by rememberSaveable { mutableStateOf(false) }
-    // Held between "pick a file" and the result coming back, since the launcher
-    // hands back only a Uri and neither name nor payload travel with it.
-    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
-    var pendingExport by remember { mutableStateOf<String?>(null) }
     var exportingPlaylist by remember { mutableStateOf<DetailTarget.Playlist?>(null) }
     var menuSong by remember { mutableStateOf<SongEntity?>(null) }
     // Snapshotted when the sheet opens rather than tracked continuously; see
@@ -224,13 +218,6 @@ private fun ResonanceRoot(
     // grants access to exactly that, which is both the modern API and less to
     // ask for than blanket file access.
     val resolver = context.contentResolver
-    val importLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri -> pendingImportUri = uri }
-
-    val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
-    ) { uri -> pendingExport = uri?.toString() }
     val snackbarHostState = remember { SnackbarHostState() }
     // Measured rather than assumed: the bar's height depends on whether it is
     // showing at all, and it carries its own navigation-bar padding inside.
@@ -241,6 +228,61 @@ private fun ResonanceRoot(
         scope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+        }
+    }
+
+    // The work runs straight off the launcher callback rather than through a
+    // LaunchedEffect keyed on a "pending uri" state. That earlier shape cleared
+    // its own key on its second line, which cancelled the effect mid-read: the
+    // file was never actually parsed and the import silently did nothing.
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val content = withContext(Dispatchers.IO) {
+                runCatching {
+                    resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                }.getOrNull()
+            }
+            if (content == null) {
+                confirm("No se pudo leer el archivo")
+                return@launch
+            }
+            val name = uri.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+                ?.takeIf { it.isNotBlank() }
+                ?: "Lista importada"
+            viewModel.importPlaylist(name, content) { added, missing ->
+                confirm(
+                    when {
+                        added == 0 -> "Ninguna pista del archivo está en tu biblioteca"
+                        missing > 0 -> "Importadas $added · $missing sin encontrar"
+                        else -> "Importadas $added pistas"
+                    }
+                )
+            }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+    ) { uri ->
+        val playlist = exportingPlaylist
+        exportingPlaylist = null
+        if (uri == null || playlist == null) return@rememberLauncherForActivityResult
+        viewModel.exportPlaylist(playlist.playlistId) { text ->
+            scope.launch {
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        resolver.openOutputStream(uri)?.use { out ->
+                            out.write(text.toByteArray())
+                        }
+                    }.isSuccess
+                }
+                confirm(if (ok) "Lista exportada" else "No se pudo escribir el archivo")
+            }
         }
     }
 
@@ -346,7 +388,7 @@ private fun ResonanceRoot(
                             dismissAction = if (data.visuals.withDismissAction) {
                                 {
                                     IconButton(onClick = { data.dismiss() }) {
-                                        Icon(Icons.Rounded.Close, contentDescription = "Cerrar")
+                                        Icon(ResonanceIcons.Close, contentDescription = "Cerrar")
                                     }
                                 }
                             } else {
@@ -389,7 +431,7 @@ private fun ResonanceRoot(
                             },
                             actions = {
                                 IconButton(onClick = { showSearch = true }) {
-                                    Icon(Icons.Rounded.Search, contentDescription = "Buscar")
+                                    Icon(ResonanceIcons.Search, contentDescription = "Buscar")
                                 }
                             },
                         )
@@ -404,7 +446,14 @@ private fun ResonanceRoot(
                                     onClick = {
                                         scope.launch { pagerState.animateScrollToPage(index) }
                                     },
-                                    text = { Text(entry.label) },
+                                    text = {
+                                        Text(
+                                            text = entry.label,
+                                            fontFamily = DisplayFont,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 15.sp,
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -508,16 +557,26 @@ private fun ResonanceRoot(
                 }
             }
 
+            // The screen keeps rendering the target it is closing.
+            //
+            // Reading `detail` directly meant the content vanished the instant it
+            // became null, leaving AnimatedVisibility to slide an empty box off
+            // the screen — the exit animation was running the whole time, over
+            // nothing. Holding the last non-null target gives it something to
+            // animate, so closing looks like the reverse of opening.
             val detailTarget = detail
+            val lastDetail = remember { mutableStateOf<DetailTarget?>(null) }
+            if (detailTarget != null) lastDetail.value = detailTarget
             AnimatedVisibility(
                 visible = detailTarget != null,
                 enter = slideInVertically { it },
                 exit = slideOutVertically { it },
             ) {
                 val detailSongs by viewModel.detailSongs.collectAsStateWithLifecycle()
-                if (detailTarget != null) {
+                val shown = detailTarget ?: lastDetail.value
+                if (shown != null) {
                     DetailScreen(
-                        target = detailTarget,
+                        target = shown,
                         songs = detailSongs,
                         onBack = { viewModel.closeDetail() },
                         onPlay = { index -> viewModel.playFrom(detailSongs, index) },
@@ -526,26 +585,26 @@ private fun ResonanceRoot(
                                 viewModel.playFrom(detailSongs.shuffled(), 0)
                             }
                         },
-                        onRemoveFromPlaylist = if (detailTarget is DetailTarget.Playlist) {
-                            { songId -> viewModel.removeFromPlaylist(detailTarget.playlistId, songId) }
+                        onRemoveFromPlaylist = if (shown is DetailTarget.Playlist) {
+                            { songId -> viewModel.removeFromPlaylist(shown.playlistId, songId) }
                         } else {
                             null
                         },
                         onSongMenu = { menuSong = it },
                         bottomInset = miniPlayerHeight,
-                        onExport = if (detailTarget is DetailTarget.Playlist) {
+                        onExport = if (shown is DetailTarget.Playlist) {
                             {
-                                exportingPlaylist = detailTarget
+                                exportingPlaylist = shown
                                 exportLauncher.launch(
-                                    M3uPlaylists.fileNameFor(detailTarget.title)
+                                    M3uPlaylists.fileNameFor(shown.title)
                                 )
                             }
                         } else {
                             null
                         },
-                        onPickCover = if (detailTarget is DetailTarget.Playlist) {
+                        onPickCover = if (shown is DetailTarget.Playlist) {
                             { albumId ->
-                                viewModel.setPlaylistCover(detailTarget.playlistId, albumId)
+                                viewModel.setPlaylistCover(shown.playlistId, albumId)
                             }
                         } else {
                             null
@@ -653,8 +712,28 @@ private fun ResonanceRoot(
                     onCycleInfoLine = {
                         scope.launch { settingsStore.setInfoLine(settings.infoLine.next()) }
                     },
-                    dismissEnabled = !showQueue && !showOutputPicker,
-                    onOpenOutputPicker = { showOutputPicker = true },
+                    dismissEnabled = !showQueue,
+                    onOpenOutputPicker = {
+                        if (!SystemOutputSwitcher.open(context)) {
+                            confirm("Este dispositivo no tiene selector de salida")
+                        }
+                    },
+                    onOpenAlbum = {
+                        viewModel.openDetail(
+                            DetailTarget.Album(
+                                albumId = playback.albumId,
+                                title = playback.album,
+                                subtitle = playback.artist,
+                                // The session carries no release year, and the
+                                // detail screen reads it from the tracks it
+                                // loads anyway; 0 means "not stated here".
+                                year = 0,
+                            )
+                        )
+                        // The player would otherwise stay on top of the very
+                        // screen it just asked for.
+                        showPlayer = false
+                    },
                     onCollapse = { showPlayer = false },
                     onPlayPause = viewModel::togglePlayPause,
                     onNext = viewModel::next,
@@ -686,8 +765,15 @@ private fun ResonanceRoot(
                     tapPlays = settings.queueTapPlays,
                     closeOnTap = settings.queueClosesOnTap,
                     onPlayItem = { index ->
-                        viewModel.playQueueItem(index, settings.queueTapPlays)
-                        if (settings.queueClosesOnTap) showQueue = false
+                        if (index == playback.queueIndex) {
+                            // Seeking to where you already are does nothing
+                            // visible, so the tap read as dead. On the current
+                            // row the useful meaning of a tap is play/pause.
+                            viewModel.togglePlayPause()
+                        } else {
+                            viewModel.playQueueItem(index, settings.queueTapPlays)
+                            if (settings.queueClosesOnTap) showQueue = false
+                        }
                     },
                     onMoveItem = viewModel::moveQueueItem,
                     onRemoveItem = viewModel::removeQueueItem,
@@ -703,6 +789,9 @@ private fun ResonanceRoot(
                         viewModel.clearQueue()
                         queue = emptyList()
                         showQueue = false
+                        // Nothing is playing and nothing is queued, so the player
+                        // would be sitting there showing a track it no longer has.
+                        showPlayer = false
                         confirm("Cola vaciada")
                     },
                     onSaveAsPlaylist = { savingQueue = true },
@@ -712,14 +801,6 @@ private fun ResonanceRoot(
                 )
             }
         }
-    }
-
-    if (showOutputPicker) {
-        OutputPickerSheet(
-            palette = palette,
-            onPick = viewModel::setPreferredOutput,
-            onDismiss = { showOutputPicker = false },
-        )
     }
 
     menuSong?.let { song ->
@@ -739,57 +820,6 @@ private fun ResonanceRoot(
             },
             onDismiss = { menuSong = null },
         )
-    }
-
-    // Reading and writing happen off the launcher callback: the callback fires
-    // on the main thread, and both sides of this touch the file system.
-    LaunchedEffect(pendingImportUri) {
-        val uri = pendingImportUri ?: return@LaunchedEffect
-        pendingImportUri = null
-        val content = withContext(Dispatchers.IO) {
-            runCatching {
-                resolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
-            }.getOrNull()
-        }
-        if (content == null) {
-            confirm("No se pudo leer el archivo")
-            return@LaunchedEffect
-        }
-        val name = uri.lastPathSegment
-            ?.substringAfterLast('/')
-            ?.substringBeforeLast('.')
-            ?.takeIf { it.isNotBlank() }
-            ?: "Lista importada"
-        viewModel.importPlaylist(name, content) { added, missing ->
-            confirm(
-                when {
-                    added == 0 -> "Ninguna pista del archivo está en tu biblioteca"
-                    missing > 0 -> "Importadas $added · $missing sin encontrar"
-                    else -> "Importadas $added pistas"
-                }
-            )
-        }
-    }
-
-    LaunchedEffect(pendingExport) {
-        val target = pendingExport ?: return@LaunchedEffect
-        val playlist = exportingPlaylist
-        pendingExport = null
-        exportingPlaylist = null
-        if (playlist == null) return@LaunchedEffect
-
-        viewModel.exportPlaylist(playlist.playlistId) { text ->
-            scope.launch {
-                val ok = withContext(Dispatchers.IO) {
-                    runCatching {
-                        resolver.openOutputStream(Uri.parse(target))?.use { out ->
-                            out.write(text.toByteArray())
-                        }
-                    }.isSuccess
-                }
-                confirm(if (ok) "Lista exportada" else "No se pudo escribir el archivo")
-            }
-        }
     }
 
     if (savingQueue) {

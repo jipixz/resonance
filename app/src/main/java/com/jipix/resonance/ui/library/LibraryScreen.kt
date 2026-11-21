@@ -28,14 +28,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.FileOpen
-import androidx.compose.material.icons.rounded.MusicNote
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.QueueMusic
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -60,6 +54,7 @@ import com.jipix.resonance.data.db.PlaylistSummary
 import com.jipix.resonance.data.db.SongEntity
 import com.jipix.resonance.data.media.MediaStoreScanner
 import java.util.Locale
+import com.jipix.resonance.ui.ResonanceIcons
 
 /**
  * The pre-Android-12 EdgeEffect glow — a wide, shallow tinted arc that flares
@@ -240,7 +235,14 @@ fun AlbumGrid(
     val gridState = rememberLazyGridState()
     Box(modifier.fillMaxSize()) {
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 160.dp),
+            // 160dp comfortably fit two columns at default display size, but
+            // Android's own "display size" accessibility setting shrinks the
+            // screen's *effective* dp width — at the larger settings, two
+            // 160dp tiles plus spacing no longer fit and Adaptive silently
+            // drops to one column. 130dp still reads as a real album grid,
+            // not a list, while leaving enough margin for two columns to
+            // survive the display-size range Android actually offers.
+            columns = GridCells.Adaptive(minSize = 130.dp),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
@@ -316,7 +318,7 @@ fun ArtistList(
             ) {
                 Artwork(
                     albumId = artist.artworkAlbumId,
-                    placeholder = Icons.Rounded.Person,
+                    placeholder = ResonanceIcons.Person,
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape),
@@ -380,7 +382,7 @@ fun PlaylistList(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Add,
+                        imageVector = ResonanceIcons.Add,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
@@ -410,7 +412,7 @@ fun PlaylistList(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.FileOpen,
+                        imageVector = ResonanceIcons.FileOpen,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
@@ -428,11 +430,8 @@ fun PlaylistList(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .combinedClickable(
-                        onClick = { onOpen(playlist) },
-                        onLongClick = { onDelete(playlist) },
-                    )
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .clickable { onOpen(playlist) }
+                    .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 PlaylistCover(
@@ -442,7 +441,11 @@ fun PlaylistList(
                         .size(48.dp)
                         .clip(RoundedCornerShape(8.dp)),
                 )
-                Column(modifier = Modifier.padding(start = 16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 16.dp),
+                ) {
                     Text(
                         text = playlist.name,
                         style = MaterialTheme.typography.bodyLarge,
@@ -454,6 +457,18 @@ fun PlaylistList(
                         text = "${playlist.songCount} pistas",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
+                // Deleting used to be a long press — the same gesture as "I am
+                // not sure what this is, let me hold it and find out" — and it
+                // destroyed the list without asking. An explicit button that
+                // confirms first is the only honest way to offer this.
+                IconButton(onClick = { onDelete(playlist) }) {
+                    Icon(
+                        imageVector = ResonanceIcons.DeleteOutline,
+                        contentDescription = "Borrar lista",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
@@ -507,7 +522,7 @@ fun PlaylistCover(
             )
 
             else -> Icon(
-                imageVector = Icons.Rounded.QueueMusic,
+                imageVector = ResonanceIcons.QueueMusic,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -524,7 +539,7 @@ fun PlaylistCover(
 fun Artwork(
     albumId: Long,
     modifier: Modifier = Modifier,
-    placeholder: ImageVector = Icons.Rounded.Album,
+    placeholder: ImageVector = ResonanceIcons.Album,
 ) {
     Box(
         modifier = modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest),
@@ -550,7 +565,7 @@ fun EmptyLibrary(message: String, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                imageVector = Icons.Rounded.MusicNote,
+                imageVector = ResonanceIcons.MusicNote,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(48.dp),

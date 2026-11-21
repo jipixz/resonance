@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Playlist add. Replaceable: export the same name from fonts.google.com over this file. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M720,680L640,680q-17,0 -28.5,-11.5T600,640q0,-17 11.5,-28.5T640,600l80,0l0,-80q0,-17 11.5,-28.5T760,480q17,0 28.5,11.5T800,520l0,80l80,0q17,0 28.5,11.5T920,640q0,17 -11.5,28.5T880,680L800,680l0,80q0,17 -11.5,28.5T760,800q-17,0 -28.5,-11.5T720,760l0,-80ZM160,640q-17,0 -28.5,-11.5T120,600q0,-17 11.5,-28.5T160,560l280,0q17,0 28.5,11.5T480,600q0,17 -11.5,28.5T440,640L160,640Zm0,-160q-17,0 -28.5,-11.5T120,440q0,-17 11.5,-28.5T160,400l440,0q17,0 28.5,11.5T640,440q0,17 -11.5,28.5T600,480L160,480Zm0,-160q-17,0 -28.5,-11.5T120,280q0,-17 11.5,-28.5T160,240l440,0q17,0 28.5,11.5T640,280q0,17 -11.5,28.5T600,320L160,320Z" />
+</vector>
